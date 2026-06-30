@@ -75,51 +75,48 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
   let apiSecret = config.coinbase.apiSecret.trim();
 
   // ==========================================
-  // SECURITE ULTIME : Extracteur Regex indestructible
+  // SECURITE ULTIME : Extracteur Regex
   // ==========================================
   const pemMatch = apiSecret.match(/-----BEGIN EC PRIVATE KEY-----(.*?)-----END EC PRIVATE KEY-----/is);
   const nameMatch = apiSecret.match(/"name"\s*:\s*"([^"]+)"/i);
 
-  // Si l'utilisateur a collé le JSON dans le secret, on extrait le nom
-  if (nameMatch && nameMatch[1].startsWith('organizations/')) {
+  // Si l'utilisateur a collé le JSON dans le secret, on extrait le nom et la clé
+  if (nameMatch) {
     apiKey = nameMatch[1];
+    
+    // Si ce n'est PAS un PEM (ex: ancienne clé HMAC), on récupère la valeur brute depuis le JSON
+    if (!pemMatch) {
+      const secretMatch = apiSecret.match(/"privateKey"\s*:\s*"([^"]+)"/i);
+      if (secretMatch) {
+        apiSecret = secretMatch[1];
+      }
+    }
   }
 
-  // Si c'est une clé CDP (nom CDP ou format PEM trouvé)
-  if (pemMatch || apiKey.startsWith('organizations/')) {
-    let rawSecret = '';
-    
-    if (pemMatch) {
-      logger.info("✅ Format de clé privée correctement détecté !");
-      // Nettoyage agressif du corps du PEM (retire les slashs de Railway, les sauts, etc.)
-      rawSecret = pemMatch[1]
-        .replace(/\\\\n/g, '')
-        .replace(/\\n/g, '')
-        .replace(/\s/g, '')
-        .replace(/"/g, '')
-        .replace(/\\/g, '');
-    } else {
-      logger.error("❌ ERREUR FATALE: Le texte 'BEGIN EC PRIVATE KEY' est INTROUVABLE dans votre COINBASE_API_SECRET sur Railway ! Vous n'avez pas collé le fichier JSON ou la clé privée correctement !");
-      rawSecret = apiSecret
-        .replace(/-----BEGIN EC PRIVATE KEY-----/gi, '')
-        .replace(/-----END EC PRIVATE KEY-----/gi, '')
-        .replace(/\\n/g, '')
-        .replace(/\s/g, '')
-        .replace(/"/g, '')
-        .replace(/\\/g, '');
-    }
+  // Détection VRAIE de la clé : si on a un PEM, c'est du CDP (JWT). Sinon c'est du Legacy (HMAC).
+  const isCDP = !!pemMatch;
 
-    // Reconstruction parfaite de la clé PEM (lignes de 64 caractères)
+  if (isCDP) {
+    logger.info("✅ Format de clé privée CDP (JWT) détecté !");
+    
+    // Nettoyage agressif du corps du PEM
+    let rawSecret = pemMatch![1]
+      .replace(/\\\\n/g, '')
+      .replace(/\\n/g, '')
+      .replace(/\s/g, '')
+      .replace(/"/g, '')
+      .replace(/\\/g, '');
+
+    // Reconstruction parfaite de la clé PEM
     const formattedBody = rawSecret.match(/.{1,64}/g)?.join('\n') || rawSecret;
     const finalSecret = `-----BEGIN EC PRIVATE KEY-----\n${formattedBody}\n-----END EC PRIVATE KEY-----\n`;
 
     const token = jwt.sign(
       {
-        iss: 'cdp',
+        iss: 'coinbase-cloud',
         nbf: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 120,
         sub: apiKey,
-        uri: `${method} api.coinbase.com${requestPath}`,
       },
       finalSecret,
       {
@@ -131,21 +128,32 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
       }
     );
 
-    return { 'Authorization': `Bearer ${token}` };
-  } 
-  
-  // Sinon, c'est une clé Legacy (HMAC Base64)
-  else {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const message = timestamp + method + requestPath + body;
-    const signature = crypto.createHmac('sha256', Buffer.from(apiSecret, 'base64'))
-                            .update(message)
-                            .digest('base64');
+    return {
+      'Authorization': `Bearer ${token}`
+    };
+  } else {
+    logger.info("✅ Format de clé Legacy (HMAC) détecté !");
     
+    // Legacy API Key (HMAC)
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const sigInput = timestamp + method.toUpperCase() + requestPath + body;
+    
+    let decodedSecret: Buffer;
+    try {
+      decodedSecret = Buffer.from(apiSecret, 'base64');
+    } catch (e) {
+      decodedSecret = Buffer.from(apiSecret);
+    }
+    
+    const signature = crypto
+      .createHmac('sha256', decodedSecret)
+      .update(sigInput)
+      .digest('base64');
+
     return {
       'CB-ACCESS-KEY': apiKey,
       'CB-ACCESS-SIGN': signature,
-      'CB-ACCESS-TIMESTAMP': timestamp
+      'CB-ACCESS-TIMESTAMP': timestamp,
     };
   }
 }
