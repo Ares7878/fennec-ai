@@ -73,10 +73,24 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
   const apiKey = config.coinbase.apiKey;
   let apiSecret = config.coinbase.apiSecret;
 
-  // Si c'est une clé CDP (PEM formatée sur une ligne ou multi-lignes)
-  if (apiSecret.includes('BEGIN EC PRIVATE KEY') || apiSecret.includes('\\n')) {
-    apiSecret = apiSecret.replace(/\\n/g, '\n');
+  // Normalisation de la clé (gère les sauts de ligne de Railway)
+  if (apiSecret.includes('BEGIN EC PRIVATE KEY')) {
+    apiSecret = apiSecret.replace(/\\n/g, '\n').replace(/"/g, '');
     
+    // Si la clé a été collée sur une seule ligne (sans vrais sauts), on la reformate
+    if (!apiSecret.includes('\n') && apiSecret.length > 100) {
+      apiSecret = apiSecret
+        .replace('-----BEGIN EC PRIVATE KEY-----', '-----BEGIN EC PRIVATE KEY-----\n')
+        .replace('-----END EC PRIVATE KEY-----', '\n-----END EC PRIVATE KEY-----');
+      // Ajoute des sauts de ligne tous les 64 caractères pour le corps base64
+      const body = apiSecret.substring(
+        apiSecret.indexOf('\n') + 1,
+        apiSecret.lastIndexOf('\n')
+      ).replace(/\s/g, '');
+      const formattedBody = body.match(/.{1,64}/g)?.join('\n') || body;
+      apiSecret = `-----BEGIN EC PRIVATE KEY-----\n${formattedBody}\n-----END EC PRIVATE KEY-----\n`;
+    }
+
     // Le secret CDP est directement la chaîne PEM
     const header = Buffer.from(JSON.stringify({ alg: 'ES256', kid: apiKey, typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
@@ -89,7 +103,7 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
     })).toString('base64url');
 
     const sigInput = `${header}.${payload}`;
-    const signature = crypto.sign(null, Buffer.from(sigInput), {
+    const signature = crypto.sign('SHA256', Buffer.from(sigInput), {
       key: apiSecret,
       format: 'pem',
       type: 'pkcs8',
