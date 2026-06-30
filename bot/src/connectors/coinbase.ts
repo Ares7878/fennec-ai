@@ -117,6 +117,7 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
         nbf: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 120,
         sub: apiKey,
+        uri: `${method.toUpperCase()} api.coinbase.com${requestPath}`,
       },
       finalSecret,
       {
