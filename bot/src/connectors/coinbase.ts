@@ -90,6 +90,7 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
     let rawSecret = '';
     
     if (pemMatch) {
+      logger.info("✅ Format de clé privée correctement détecté !");
       // Nettoyage agressif du corps du PEM (retire les slashs de Railway, les sauts, etc.)
       rawSecret = pemMatch[1]
         .replace(/\\\\n/g, '')
@@ -98,6 +99,7 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
         .replace(/"/g, '')
         .replace(/\\/g, '');
     } else {
+      logger.error("❌ ERREUR FATALE: Le texte 'BEGIN EC PRIVATE KEY' est INTROUVABLE dans votre COINBASE_API_SECRET sur Railway ! Vous n'avez pas collé le fichier JSON ou la clé privée correctement !");
       rawSecret = apiSecret
         .replace(/-----BEGIN EC PRIVATE KEY-----/gi, '')
         .replace(/-----END EC PRIVATE KEY-----/gi, '')
