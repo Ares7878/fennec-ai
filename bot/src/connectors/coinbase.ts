@@ -104,7 +104,7 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
         header: {
           kid: apiKey,
           nonce: crypto.randomBytes(16).toString('hex'),
-        },
+        } as any
       }
     );
 
