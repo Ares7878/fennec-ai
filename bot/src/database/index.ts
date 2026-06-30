@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { SCHEMA_SQL } from './schema';
 
 // =============================================
 // Couche d'abstraction sql.js avec persistence
@@ -51,9 +52,7 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
   }
 
   // Chargement et exécution du schéma
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schema = fs.readFileSync(schemaPath, 'utf-8');
-  db.run(schema);
+  db.run(SCHEMA_SQL);
   persistDb();
 
   // Sauvegarde périodique toutes les 30 secondes

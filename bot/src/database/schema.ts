@@ -1,3 +1,4 @@
+export const SCHEMA_SQL = `
 -- ============================================
 -- 🦊 FENNEC AI — Schéma Base de Données SQLite
 -- ============================================
@@ -122,3 +123,4 @@ INSERT OR IGNORE INTO bot_config (key, value) VALUES
   ('paper_balance_usd', '10000'),
   ('bot_started_at', datetime('now')),
   ('version', '1.0.0');
+`;
