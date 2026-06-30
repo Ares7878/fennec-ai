@@ -134,21 +134,15 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
   } else {
     logger.info("✅ Format de clé Legacy (HMAC) détecté !");
     
-    // Legacy API Key (HMAC)
+    // Legacy API Key (HMAC) pour Advanced Trade API
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const sigInput = timestamp + method.toUpperCase() + requestPath + body;
     
-    let decodedSecret: Buffer;
-    try {
-      decodedSecret = Buffer.from(apiSecret, 'base64');
-    } catch (e) {
-      decodedSecret = Buffer.from(apiSecret);
-    }
-    
+    // Pour Advanced Trade API, le secret est utilisé tel quel (utf-8) et la signature est en hex
     const signature = crypto
-      .createHmac('sha256', decodedSecret)
+      .createHmac('sha256', apiSecret)
       .update(sigInput)
-      .digest('base64');
+      .digest('hex');
 
     return {
       'CB-ACCESS-KEY': apiKey,
