@@ -14,7 +14,7 @@
   "keywords": ["trading", "bot", "coinbase", "crypto", "fennec"],
   "author": "Fennec AI",
   "license": "MIT",
-  "dependencies": {
+  "engines": { "node": ">=18" },"dependencies": {
     "axios": "^1.7.9",
     "sql.js": "^1.11.0",
     "chalk": "^4.1.2",
