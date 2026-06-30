@@ -75,32 +75,37 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
   let apiSecret = config.coinbase.apiSecret.trim();
 
   // ==========================================
-  // SECURITE ULTIME : Parseur de JSON Coinbase
-  // Si l'utilisateur a collé tout le contenu du fichier "cdp_api_key.json"
+  // SECURITE ULTIME : Extracteur Regex indestructible
   // ==========================================
-  if (apiSecret.startsWith('{') && apiSecret.includes('"privateKey"')) {
-    try {
-      const parsed = JSON.parse(apiSecret);
-      if (parsed.name && parsed.privateKey) {
-        apiKey = parsed.name;
-        apiSecret = parsed.privateKey;
-      }
-    } catch (e) {
-      logger.warn("Impossible de parser le JSON Coinbase, tentative classique...");
-    }
+  const pemMatch = apiSecret.match(/-----BEGIN EC PRIVATE KEY-----(.*?)-----END EC PRIVATE KEY-----/is);
+  const nameMatch = apiSecret.match(/"name"\s*:\s*"([^"]+)"/i);
+
+  // Si l'utilisateur a collé le JSON dans le secret, on extrait le nom
+  if (nameMatch && nameMatch[1].startsWith('organizations/')) {
+    apiKey = nameMatch[1];
   }
 
-  // Détection du type de clé : Les clés CDP commencent toujours par "organizations/"
-  const isCDP = apiKey.startsWith('organizations/');
-
-  if (isCDP) {
-    // Nettoyage agressif : on retire tout (entêtes, espaces, sauts de ligne) pour récupérer juste le base64
-    let rawSecret = apiSecret
-      .replace(/-----BEGIN EC PRIVATE KEY-----/gi, '')
-      .replace(/-----END EC PRIVATE KEY-----/gi, '')
-      .replace(/\\n/g, '')
-      .replace(/\s/g, '')
-      .replace(/"/g, '');
+  // Si c'est une clé CDP (nom CDP ou format PEM trouvé)
+  if (pemMatch || apiKey.startsWith('organizations/')) {
+    let rawSecret = '';
+    
+    if (pemMatch) {
+      // Nettoyage agressif du corps du PEM (retire les slashs de Railway, les sauts, etc.)
+      rawSecret = pemMatch[1]
+        .replace(/\\\\n/g, '')
+        .replace(/\\n/g, '')
+        .replace(/\s/g, '')
+        .replace(/"/g, '')
+        .replace(/\\/g, '');
+    } else {
+      rawSecret = apiSecret
+        .replace(/-----BEGIN EC PRIVATE KEY-----/gi, '')
+        .replace(/-----END EC PRIVATE KEY-----/gi, '')
+        .replace(/\\n/g, '')
+        .replace(/\s/g, '')
+        .replace(/"/g, '')
+        .replace(/\\/g, '');
+    }
 
     // Reconstruction parfaite de la clé PEM (lignes de 64 caractères)
     const formattedBody = rawSecret.match(/.{1,64}/g)?.join('\n') || rawSecret;
