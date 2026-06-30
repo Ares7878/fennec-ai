@@ -71,8 +71,24 @@ export interface Candle {
 // Authentification Coinbase (Support Legacy HMAC + CDP JWT)
 // =============================================
 function signRequest(method: string, requestPath: string, body: string = ''): Record<string, string> {
-  const apiKey = config.coinbase.apiKey.trim();
+  let apiKey = config.coinbase.apiKey.trim();
   let apiSecret = config.coinbase.apiSecret.trim();
+
+  // ==========================================
+  // SECURITE ULTIME : Parseur de JSON Coinbase
+  // Si l'utilisateur a collé tout le contenu du fichier "cdp_api_key.json"
+  // ==========================================
+  if (apiSecret.startsWith('{') && apiSecret.includes('"privateKey"')) {
+    try {
+      const parsed = JSON.parse(apiSecret);
+      if (parsed.name && parsed.privateKey) {
+        apiKey = parsed.name;
+        apiSecret = parsed.privateKey;
+      }
+    } catch (e) {
+      logger.warn("Impossible de parser le JSON Coinbase, tentative classique...");
+    }
+  }
 
   // Détection du type de clé : Les clés CDP commencent toujours par "organizations/"
   const isCDP = apiKey.startsWith('organizations/');
