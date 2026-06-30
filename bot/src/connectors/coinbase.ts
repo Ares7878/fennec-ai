@@ -67,38 +67,53 @@ export interface Candle {
 }
 
 // =============================================
-// Génération du JWT pour l'API CDP (nouveau format)
+// Authentification Coinbase (Support Legacy HMAC + CDP JWT)
 // =============================================
-function buildJWT(method: string, requestPath: string): string {
+function signRequest(method: string, requestPath: string, body: string = ''): Record<string, string> {
   const apiKey = config.coinbase.apiKey;
-  const apiSecret = config.coinbase.apiSecret;
+  let apiSecret = config.coinbase.apiSecret;
 
-  // Le secret CDP est en base64 — on le décode en Buffer
-  const keyBuffer = Buffer.from(apiSecret, 'base64');
+  // Si c'est une clé CDP (PEM formatée sur une ligne ou multi-lignes)
+  if (apiSecret.includes('BEGIN EC PRIVATE KEY') || apiSecret.includes('\\n')) {
+    apiSecret = apiSecret.replace(/\\n/g, '\n');
+    
+    // Le secret CDP est directement la chaîne PEM
+    const header = Buffer.from(JSON.stringify({ alg: 'ES256', kid: apiKey, typ: 'JWT' })).toString('base64url');
+    const now = Math.floor(Date.now() / 1000);
+    const payload = Buffer.from(JSON.stringify({
+      sub: apiKey,
+      iss: 'cdp',
+      nbf: now,
+      exp: now + 120,
+      uri: `${method} api.coinbase.com${requestPath}`,
+    })).toString('base64url');
 
-  const header = Buffer.from(JSON.stringify({ alg: 'ES256', kid: apiKey, typ: 'JWT' })).toString('base64url');
+    const sigInput = `${header}.${payload}`;
+    const signature = crypto.sign(null, Buffer.from(sigInput), {
+      key: apiSecret,
+      format: 'pem',
+      type: 'pkcs8',
+      dsaEncoding: 'ieee-p1363',
+    });
 
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(JSON.stringify({
-    sub: apiKey,
-    iss: 'cdp',
-    nbf: now,
-    exp: now + 120,
-    uri: `${method} api.coinbase.com${requestPath}`,
-  })).toString('base64url');
-
-  const sigInput = `${header}.${payload}`;
-
-  // Signe avec Ed25519
-  const signature = crypto.sign(null, Buffer.from(sigInput), {
-    key: keyBuffer,
-    format: 'der',
-    type: 'pkcs8',
-    dsaEncoding: 'ieee-p1363',
-  });
-
-  const sigB64 = signature.toString('base64url');
-  return `${sigInput}.${sigB64}`;
+    const sigB64 = signature.toString('base64url');
+    return { 'Authorization': `Bearer ${sigInput}.${sigB64}` };
+  } 
+  
+  // Sinon, c'est une clé Legacy (HMAC Base64)
+  else {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const message = timestamp + method + requestPath + body;
+    const signature = crypto.createHmac('sha256', Buffer.from(apiSecret, 'base64'))
+                            .update(message)
+                            .digest('base64');
+    
+    return {
+      'CB-ACCESS-KEY': apiKey,
+      'CB-ACCESS-SIGN': signature,
+      'CB-ACCESS-TIMESTAMP': timestamp
+    };
+  }
 }
 
 // =============================================
@@ -121,12 +136,15 @@ export class CoinbaseConnector {
       },
     });
 
-    // Intercepteur JWT — signe chaque requête avec le token CDP
+    // Intercepteur JWT/HMAC — signe chaque requête
     this.http.interceptors.request.use((req) => {
       const method = (req.method || 'GET').toUpperCase();
       const path = req.url || '';
-      const jwt = buildJWT(method, path);
-      req.headers['Authorization'] = `Bearer ${jwt}`;
+      const body = req.data ? JSON.stringify(req.data) : '';
+      
+      const authHeaders = signRequest(method, path, body);
+      Object.assign(req.headers, authHeaders);
+      
       return req;
     });
   }
@@ -329,14 +347,22 @@ export class CoinbaseConnector {
       logger.info(`📡 WebSocket connecté — abonnement à ${pairs.join(', ')}`);
       this.reconnectAttempts = 0;
 
-      const jwt = buildJWT('GET', '/');
+      const authHeaders = signRequest('GET', '/');
+      const isJWT = 'Authorization' in authHeaders;
 
-      const subscribeMsg = {
+      const subscribeMsg: any = {
         type: 'subscribe',
         product_ids: pairs,
         channel: 'ticker',
-        jwt,
       };
+
+      if (isJWT) {
+        subscribeMsg.jwt = authHeaders['Authorization'].replace('Bearer ', '');
+      } else {
+        subscribeMsg.api_key = authHeaders['CB-ACCESS-KEY'];
+        subscribeMsg.signature = authHeaders['CB-ACCESS-SIGN'];
+        subscribeMsg.timestamp = authHeaders['CB-ACCESS-TIMESTAMP'];
+      }
 
       this.ws!.send(JSON.stringify(subscribeMsg));
     });
