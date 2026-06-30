@@ -1,0 +1,30 @@
+# Fichiers sensibles — NE JAMAIS COMMITTER
+.env
+*.env.local
+
+# Dépendances
+node_modules/
+bot/node_modules/
+dashboard/node_modules/
+
+# Build
+bot/dist/
+dashboard/dist/
+
+# Base de données
+bot/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Logs
+bot/logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/

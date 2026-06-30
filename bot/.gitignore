@@ -1,0 +1,27 @@
+# Fichiers sensibles — NE JAMAIS COMMITTER
+.env
+*.env.local
+
+# Dépendances
+node_modules/
+
+# Build TypeScript
+dist/
+
+# Base de données (contient votre historique de trades)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
