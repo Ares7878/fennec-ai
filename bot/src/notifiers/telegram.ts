@@ -315,7 +315,8 @@ export class TelegramNotifier {
    */
   async testConnection(): Promise<boolean> {
     try {
-      await this.sendMessage('🦊 *Fennec AI* — Test de connexion ✅');
+      // Désactivé pour éviter le spam lors des redémarrages en boucle
+      // await this.sendMessage('🦊 *Fennec AI* — Test de connexion ✅');
       logger.info('✅ Telegram connecté avec succès');
       return true;
     } catch (err: any) {
