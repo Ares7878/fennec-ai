@@ -33,6 +33,7 @@ function formatUptime(seconds: number) {
   return `${h}h ${m}m`;
 }
 
+// @ts-ignore
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -651,10 +652,10 @@ export default function App() {
   const [page, setPage] = useState<NavPage>('dashboard');
   const [status, setStatus] = useState<BotStatus>(getMockStatus());
   const [prices, setPrices] = useState<CryptoPrice[]>(getMockPrices());
-  const [portfolio, setPortfolio] = useState<Portfolio>(getMockPortfolio());
-  const [portfolioHistory, setPortfolioHistory] = useState<PortfolioSnapshot[]>(getMockPortfolioHistory());
-  const [trades, setTrades] = useState<Trade[]>(getMockTrades());
-  const [stats, setStats] = useState<Stats>(getMockStats());
+  const [portfolio, /* setPortfolio */] = useState<Portfolio>(getMockPortfolio());
+  const [portfolioHistory, /* setPortfolioHistory */] = useState<PortfolioSnapshot[]>(getMockPortfolioHistory());
+  const [trades, /* setTrades */] = useState<Trade[]>(getMockTrades());
+  const [stats, /* setStats */] = useState<Stats>(getMockStats());
   const [selectedPair, setSelectedPair] = useState('BTC-USD');
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
