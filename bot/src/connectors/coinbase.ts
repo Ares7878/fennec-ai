@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import WebSocket from 'ws';
 import { config } from '../config';
 import { logger } from '../utils/logger';
@@ -89,26 +90,25 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
     const formattedBody = rawSecret.match(/.{1,64}/g)?.join('\n') || rawSecret;
     const finalSecret = `-----BEGIN EC PRIVATE KEY-----\n${formattedBody}\n-----END EC PRIVATE KEY-----\n`;
 
-    const header = Buffer.from(JSON.stringify({ alg: 'ES256', kid: apiKey, typ: 'JWT' })).toString('base64url');
-    const now = Math.floor(Date.now() / 1000);
-    const payload = Buffer.from(JSON.stringify({
-      sub: apiKey,
-      iss: 'cdp',
-      nbf: now,
-      exp: now + 120,
-      uri: `${method} api.coinbase.com${requestPath}`,
-    })).toString('base64url');
+    const token = jwt.sign(
+      {
+        iss: 'cdp',
+        nbf: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 120,
+        sub: apiKey,
+        uri: `${method} api.coinbase.com${requestPath}`,
+      },
+      finalSecret,
+      {
+        algorithm: 'ES256',
+        header: {
+          kid: apiKey,
+          nonce: crypto.randomBytes(16).toString('hex'),
+        },
+      }
+    );
 
-    const sigInput = `${header}.${payload}`;
-    const signature = crypto.sign('SHA256', Buffer.from(sigInput), {
-      key: finalSecret,
-      format: 'pem',
-      type: 'pkcs8',
-      dsaEncoding: 'ieee-p1363',
-    });
-
-    const sigB64 = signature.toString('base64url');
-    return { 'Authorization': `Bearer ${sigInput}.${sigB64}` };
+    return { 'Authorization': `Bearer ${token}` };
   } 
   
   // Sinon, c'est une clé Legacy (HMAC Base64)
