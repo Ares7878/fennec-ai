@@ -70,28 +70,25 @@ export interface Candle {
 // Authentification Coinbase (Support Legacy HMAC + CDP JWT)
 // =============================================
 function signRequest(method: string, requestPath: string, body: string = ''): Record<string, string> {
-  const apiKey = config.coinbase.apiKey;
-  let apiSecret = config.coinbase.apiSecret;
+  const apiKey = config.coinbase.apiKey.trim();
+  let apiSecret = config.coinbase.apiSecret.trim();
 
-  // Normalisation de la clé (gère les sauts de ligne de Railway)
-  if (apiSecret.includes('BEGIN EC PRIVATE KEY')) {
-    apiSecret = apiSecret.replace(/\\n/g, '\n').replace(/"/g, '');
-    
-    // Si la clé a été collée sur une seule ligne (sans vrais sauts), on la reformate
-    if (!apiSecret.includes('\n') && apiSecret.length > 100) {
-      apiSecret = apiSecret
-        .replace('-----BEGIN EC PRIVATE KEY-----', '-----BEGIN EC PRIVATE KEY-----\n')
-        .replace('-----END EC PRIVATE KEY-----', '\n-----END EC PRIVATE KEY-----');
-      // Ajoute des sauts de ligne tous les 64 caractères pour le corps base64
-      const body = apiSecret.substring(
-        apiSecret.indexOf('\n') + 1,
-        apiSecret.lastIndexOf('\n')
-      ).replace(/\s/g, '');
-      const formattedBody = body.match(/.{1,64}/g)?.join('\n') || body;
-      apiSecret = `-----BEGIN EC PRIVATE KEY-----\n${formattedBody}\n-----END EC PRIVATE KEY-----\n`;
-    }
+  // Détection du type de clé : Les clés CDP commencent toujours par "organizations/"
+  const isCDP = apiKey.startsWith('organizations/');
 
-    // Le secret CDP est directement la chaîne PEM
+  if (isCDP) {
+    // Nettoyage agressif : on retire tout (entêtes, espaces, sauts de ligne) pour récupérer juste le base64
+    let rawSecret = apiSecret
+      .replace(/-----BEGIN EC PRIVATE KEY-----/gi, '')
+      .replace(/-----END EC PRIVATE KEY-----/gi, '')
+      .replace(/\\n/g, '')
+      .replace(/\s/g, '')
+      .replace(/"/g, '');
+
+    // Reconstruction parfaite de la clé PEM (lignes de 64 caractères)
+    const formattedBody = rawSecret.match(/.{1,64}/g)?.join('\n') || rawSecret;
+    const finalSecret = `-----BEGIN EC PRIVATE KEY-----\n${formattedBody}\n-----END EC PRIVATE KEY-----\n`;
+
     const header = Buffer.from(JSON.stringify({ alg: 'ES256', kid: apiKey, typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
     const payload = Buffer.from(JSON.stringify({
@@ -104,7 +101,7 @@ function signRequest(method: string, requestPath: string, body: string = ''): Re
 
     const sigInput = `${header}.${payload}`;
     const signature = crypto.sign('SHA256', Buffer.from(sigInput), {
-      key: apiSecret,
+      key: finalSecret,
       format: 'pem',
       type: 'pkcs8',
       dsaEncoding: 'ieee-p1363',
