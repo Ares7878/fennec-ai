@@ -280,10 +280,13 @@ export function createApiServer(
     if (!valid.includes(strategy)) {
       return res.status(400).json({ error: `Stratégie invalide. Utilisez : ${valid.join(', ')}` });
     }
-    logger.info(`📊 Changement de stratégie demandé via dashboard : ${strategy} (effectif au prochain redémarrage)`);
+    logger.info(`📊 Changement de stratégie demandé via dashboard : ${strategy} (immédiatement effectif)`);
+    config.strategy.active = strategy as any;
+    engine.reloadStrategies();
+
     res.json({
       success: true,
-      message: `Stratégie ${strategy} sélectionnée. Changement effectif au prochain redémarrage.`,
+      message: `Stratégie ${strategy} activée avec succès !`,
       current: config.strategy.active,
       requested: strategy,
     });

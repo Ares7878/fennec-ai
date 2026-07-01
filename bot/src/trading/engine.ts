@@ -34,7 +34,7 @@ export class TradingEngine {
     this.riskManager = riskManager;
     this.paperEngine = new PaperTradingEngine(notifier);
 
-    this.initStrategies();
+    this.reloadStrategies();
     this.registerTelegramCommands();
   }
 
@@ -42,7 +42,7 @@ export class TradingEngine {
   // Initialisation
   // =============================================
 
-  private initStrategies(): void {
+  public reloadStrategies(): void {
     for (const pair of config.trading.pairs) {
       const strategy = createStrategy(config.strategy.active, {
         pair,
