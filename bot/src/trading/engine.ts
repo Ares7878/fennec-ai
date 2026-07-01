@@ -1,7 +1,7 @@
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { CoinbaseConnector, Candle } from '../connectors/coinbase';
-import { TelegramNotifier } from '../notifiers/telegram';
+import { TelegramNotifier, getRandomPhrase } from '../notifiers/telegram';
 import { PaperTradingEngine } from './paper';
 import { RiskManager } from '../risk/manager';
 import { createStrategy, BaseStrategy, StrategySignal } from '../strategies';
@@ -73,6 +73,7 @@ export class TradingEngine {
 
       const lines = [
         `🦊 *Fennec AI — Status*`,
+        `_${getRandomPhrase('analyse')}_`,
         `━━━━━━━━━━━━━━━━━━━━`,
         `🎯 Mode : *${config.trading.mode.toUpperCase()}${config.trading.mode === 'paper' ? ' (Simulation)' : ''}*`,
         `${status.active ? '▶️ Actif' : status.paused ? '⏸️ En pause' : '🛑 Arrêt urgence'}`,

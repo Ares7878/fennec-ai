@@ -32,6 +32,40 @@ export interface DailyReport {
 }
 
 // =============================================
+// Phrases du Fennec
+// =============================================
+const fennecPhrases = {
+  achat: [
+    "J'ai flairé une opportunité avec mes grandes oreilles ! 🦊",
+    "Le marché est appétissant, j'attaque la proie ! 🍗",
+    "Ça sent le profit à plein nez, je lance l'ordre !",
+    "Attention, le Fennec passe à l'action sur le marché !",
+    "Opportunité détectée, mes moustaches vibrent de plaisir !"
+  ],
+  analyse: [
+    "Je rôde dans le terrier en attendant le bon moment...",
+    "Je surveille les courbes, quel calme plat.",
+    "Le marché est comme une nuit dans le désert, je reste aux aguets.",
+    "Pour le moment ça pue sur tous les marchés, je me casse !",
+    "Je peaufine mes calculs, la chasse sera bonne !",
+    "Je reste tapis dans l'ombre, je ne sors pas pour rien."
+  ],
+  perte: [
+    "C'est la faute de la connexion, j'ai glissé sur une dune ! 😅",
+    "Le marché est mal luné aujourd'hui, grrr...",
+    "C'est la faute de Donald Trump, il fout la merde sur les marchés ce connard !",
+    "Oups, j'ai confondu un caillou avec une proie, je me replie.",
+    "La volatilité m'a fait perdre le Nord, je me recalibre.",
+    "Le Fennec a été surpris, je rentre soigner mes blessures."
+  ]
+};
+
+export function getRandomPhrase(type: keyof typeof fennecPhrases): string {
+  const phrases = fennecPhrases[type];
+  return phrases[Math.floor(Math.random() * phrases.length)];
+}
+
+// =============================================
 // Module Telegram Notifier
 // =============================================
 export class TelegramNotifier {
@@ -159,9 +193,10 @@ export class TelegramNotifier {
   async notifyTradeOpen(trade: TradeNotification): Promise<void> {
     const emoji = trade.side === 'buy' ? '🟢' : '🔴';
     const sideLabel = trade.side === 'buy' ? 'ACHAT' : 'VENTE';
-
+    
     const lines = [
       `${emoji} *${sideLabel} — ${trade.pair}*`,
+      `_${trade.side === 'buy' ? getRandomPhrase('achat') : ''}_`,
       `━━━━━━━━━━━━━━━━━━━━`,
       `💰 Prix : *$${this.fmt(trade.price)}*`,
       `📊 Quantité : ${trade.quantity.toFixed(6)}`,
@@ -191,6 +226,7 @@ export class TelegramNotifier {
 
     const lines = [
       `${emoji} *TRADE FERMÉ — ${trade.pair}*`,
+      ...(pnl < 0 ? [`_${getRandomPhrase('perte')}_`] : []),
       `━━━━━━━━━━━━━━━━━━━━`,
       `💰 Prix sortie : *$${this.fmt(trade.price)}*`,
       `${pnlEmoji} P&L : *${pnl >= 0 ? '+' : ''}$${this.fmt(pnl)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%)*`,
@@ -280,6 +316,7 @@ export class TelegramNotifier {
   async notifyStartup(mode: string, pairs: string[]): Promise<void> {
     const lines = [
       `🦊 *Fennec AI — Démarré !*`,
+      `_${getRandomPhrase('analyse')}_`,
       `━━━━━━━━━━━━━━━━━━━━`,
       `🎯 Mode : *${mode.toUpperCase()}${mode === 'paper' ? ' (Simulation)' : ''}*`,
       `📊 Paires : ${pairs.join(', ')}`,
