@@ -558,7 +558,7 @@ function TradesPage({ trades }: { trades: Trade[] }) {
 // =============================================
 // Page: Signaux — Données réelles depuis la DB
 // =============================================
-function SignalsPage({ signals, prices }: { signals: Signal[]; prices: CryptoPrice[] }) {
+function SignalsPage({ signals }: { signals: Signal[] }) {
   // Si pas de signaux réels, afficher un placeholder
   if (signals.length === 0) {
     return (
@@ -699,7 +699,7 @@ export default function App() {
   const [selectedPair, setSelectedPair] = useState('BTC-USD');
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isOnline, setIsOnline] = useState<boolean | null>(null); // null = connecting
-  const refreshRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // =============================================
   // Chargement des données réelles depuis l'API
@@ -824,7 +824,7 @@ export default function App() {
           />
         )}
         {page === 'trades' && <TradesPage trades={trades} />}
-        {page === 'signals' && <SignalsPage signals={signals} prices={prices} />}
+        {page === 'signals' && <SignalsPage signals={signals} />}
         {page === 'settings' && <SettingsPage />}
       </main>
     </div>

@@ -1,64 +1,9 @@
 import { Candle } from '../connectors/coinbase';
 import { TechnicalAnalysis, FullIndicators } from './indicators';
 import { ConsensusStrategy } from './consensus';
+import { BaseStrategy, StrategyConfig, StrategySignal, SignalType } from './base';
 
-// =============================================
-// Types de Base
-// =============================================
-export type SignalType = 'buy' | 'sell' | 'hold';
-
-export interface StrategySignal {
-  signal: SignalType;
-  strength: number;   // 0 à 1 (1 = signal très fort)
-  reason: string;
-  indicators: Partial<FullIndicators>;
-  price: number;
-}
-
-export interface StrategyConfig {
-  pair: string;
-  interval: string;
-  params?: Record<string, number>;
-}
-
-// =============================================
-// Interface de Base pour Toutes les Stratégies
-// =============================================
-export abstract class BaseStrategy {
-  abstract readonly name: string;
-  abstract readonly description: string;
-
-  protected config: StrategyConfig;
-
-  constructor(config: StrategyConfig) {
-    this.config = config;
-  }
-
-  /**
-   * Méthode principale : analyse les chandeliers et retourne un signal
-   */
-  abstract analyze(candles: Candle[]): StrategySignal;
-
-  /**
-   * Vérifie qu'il y a assez de données
-   */
-  protected hasEnoughData(candles: Candle[], minimum: number): boolean {
-    return candles.length >= minimum;
-  }
-
-  /**
-   * Signal neutre par défaut
-   */
-  protected holdSignal(price: number, reason: string): StrategySignal {
-    return {
-      signal: 'hold',
-      strength: 0,
-      reason,
-      indicators: {},
-      price,
-    };
-  }
-}
+export { BaseStrategy, StrategyConfig, StrategySignal, SignalType };
 
 // =============================================
 // Stratégie RSI

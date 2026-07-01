@@ -1,6 +1,6 @@
 import { Candle } from '../connectors/coinbase';
 import { TechnicalAnalysis, FullIndicators } from './indicators';
-import { BaseStrategy, StrategySignal, StrategyConfig } from './index';
+import { BaseStrategy, StrategySignal, StrategyConfig } from './base';
 
 // =============================================
 // 🧠 Stratégie Consensus Multi-Signal
