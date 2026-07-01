@@ -16,7 +16,7 @@ export class TradingEngine {
   private riskManager: RiskManager;
   private paperEngine: PaperTradingEngine;
   private strategies: Map<string, BaseStrategy> = new Map();
-  private liveprices: Map<string, number> = new Map();
+  private liveprices: Map<string, { price: number; change24h?: number }> = new Map();
   private isRunning = false;
   private analysisInterval: NodeJS.Timeout | null = null;
 
@@ -58,8 +58,8 @@ export class TradingEngine {
       const status = this.riskManager.getStatus() as any;
       const prices: string[] = [];
 
-      this.liveprices.forEach((price, pair) => {
-        prices.push(`• ${pair}: $${price.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}`);
+      this.liveprices.forEach((data, pair) => {
+        prices.push(`• ${pair}: $${data.price.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}`);
       });
 
       // Cooldown restant
@@ -133,7 +133,9 @@ export class TradingEngine {
     });
 
     this.notifier.registerCommand('portfolio', async () => {
-      return this.paperEngine.getSummary(this.liveprices);
+      const pricesMap = new Map<string, number>();
+      this.liveprices.forEach((data, pair) => pricesMap.set(pair, data.price));
+      return this.paperEngine.getSummary(pricesMap);
     });
 
     this.notifier.registerCommand('pause', async () => {
@@ -164,8 +166,8 @@ export class TradingEngine {
     this.paperEngine.reloadOpenPositions();
 
     // Abonnement aux prix en temps réel via WebSocket
-    this.coinbase.subscribeToTicker(config.trading.pairs, (pair, price) => {
-      this.liveprices.set(pair, price);
+    this.coinbase.subscribeToTicker(config.trading.pairs, (pair, price, change24h) => {
+      this.liveprices.set(pair, { price, change24h });
       // Vérification des stop-loss en temps réel
       this.checkOpenTradesExitConditions(pair, price);
     });
@@ -236,7 +238,9 @@ export class TradingEngine {
     }
 
     const currentPrice = candles[candles.length - 1].close;
-    this.liveprices.set(pair, currentPrice);
+    if (currentPrice > 0) {
+      this.liveprices.set(pair, { ...this.liveprices.get(pair), price: currentPrice });
+    }
 
     // Génération du signal
     const signal: StrategySignal = strategy.analyze(candles);
@@ -448,7 +452,11 @@ export class TradingEngine {
   private async savePortfolioSnapshot(): Promise<void> {
     try {
       const totalValue = config.trading.mode === 'paper'
-        ? this.paperEngine.getPortfolioValueUSD(this.liveprices)
+        ? (() => {
+            const pricesMap = new Map<string, number>();
+            this.liveprices.forEach((data, pair) => pricesMap.set(pair, data.price));
+            return this.paperEngine.getPortfolioValueUSD(pricesMap);
+          })()
         : await this.coinbase.getTotalPortfolioValueUSD();
 
       const cashUSD = config.trading.mode === 'paper'
@@ -494,7 +502,7 @@ export class TradingEngine {
     return map[interval] || 900_000; // Défaut : 15 minutes
   }
 
-  getLivePrices(): Map<string, number> {
+  getLivePrices(): Map<string, { price: number; change24h?: number }> {
     return this.liveprices;
   }
 }

@@ -376,7 +376,7 @@ export class CoinbaseConnector {
    * S'abonne aux prix en temps réel pour une ou plusieurs paires
    * Note: le WebSocket Coinbase Advanced Trade utilise aussi la signature JWT
    */
-  subscribeToTicker(pairs: string[], onPrice: (pair: string, price: number) => void): void {
+  subscribeToTicker(pairs: string[], onPrice: (pair: string, price: number, change24h?: number) => void): void {
     if (this.ws) {
       this.ws.close();
     }
@@ -414,9 +414,10 @@ export class CoinbaseConnector {
           for (const event of msg.events) {
             for (const tick of (event.tickers || [])) {
               const price = parseFloat(tick.price);
+              const change24h = tick.price_percent_chg_24_h ? parseFloat(tick.price_percent_chg_24_h) : undefined;
               if (price > 0) {
                 this.lastPriceReceivedAt = Date.now(); // 🆕 Mise à jour heartbeat
-                onPrice(tick.product_id, price);
+                onPrice(tick.product_id, price, change24h);
               }
             }
           }

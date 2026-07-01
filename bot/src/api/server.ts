@@ -71,7 +71,7 @@ export function createApiServer(
       const riskStatus = riskManager.getStatus() as any;
       const prices = engine.getLivePrices();
       const pricesObj: Record<string, number> = {};
-      prices.forEach((price, pair) => { pricesObj[pair] = price; });
+      prices.forEach((data, pair) => { pricesObj[pair] = data.price; });
 
       res.json({
         running: true,
@@ -96,10 +96,11 @@ export function createApiServer(
     try {
       const prices = engine.getLivePrices();
       const result: any[] = [];
-      prices.forEach((price, pair) => {
+      prices.forEach((data, pair) => {
         result.push({
           pair,
-          price,
+          price: data.price,
+          change24h: data.change24h,
           lastUpdated: new Date().toISOString(),
         });
       });
@@ -165,7 +166,7 @@ export function createApiServer(
 
       // Enrichir avec le P&L non réalisé
       const enriched = openTrades.map(t => {
-        const currentPrice = prices.get(t.pair) || t.entry_price;
+        const currentPrice = prices.get(t.pair)?.price || t.entry_price;
         const unrealizedPnl = (currentPrice - t.entry_price) * t.quantity;
         const unrealizedPct = ((currentPrice - t.entry_price) / t.entry_price) * 100;
         return {
