@@ -48,7 +48,7 @@ function formatDate(iso: string) {
 // =============================================
 // Composant: Sidebar
 // =============================================
-function Sidebar({ page, onNav }: { page: NavPage; onNav: (p: NavPage) => void }) {
+function Sidebar({ page, onNav, onAbout, onLogout }: { page: NavPage; onNav: (p: NavPage) => void; onAbout: () => void; onLogout: () => void }) {
   const items: { page: NavPage; icon: string; label: string }[] = [
     { page: 'dashboard', icon: '📊', label: 'Dashboard' },
     { page: 'trades', icon: '💹', label: 'Trades' },
@@ -58,7 +58,9 @@ function Sidebar({ page, onNav }: { page: NavPage; onNav: (p: NavPage) => void }
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">🦊</div>
+      <div className="sidebar-logo">
+        <img src="/logo.png" alt="Fennec AI" style={{ width: '40px', height: '40px', borderRadius: '8px' }} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerText = '🦊'; }} />
+      </div>
       <nav className="sidebar-nav">
         {items.map(item => (
           <button
@@ -73,6 +75,16 @@ function Sidebar({ page, onNav }: { page: NavPage; onNav: (p: NavPage) => void }
           </button>
         ))}
       </nav>
+      <div style={{ marginTop: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <button className="sidebar-btn" onClick={onAbout} title="À propos">
+          <span>ℹ️</span>
+          <span className="tooltip">À propos</span>
+        </button>
+        <button className="sidebar-btn" onClick={onLogout} title="Déconnexion" style={{ color: 'var(--color-danger)' }}>
+          <span>🚪</span>
+          <span className="tooltip">Déconnexion</span>
+        </button>
+      </div>
     </aside>
   );
 }
@@ -329,11 +341,11 @@ function RiskMonitor({ status }: { status: BotStatus }) {
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1, background: 'var(--color-surface-3)', borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Stop-Loss</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-danger)' }}>3%</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-danger)' }}>1%</div>
           </div>
           <div style={{ flex: 1, background: 'var(--color-surface-3)', borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Take-Profit</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-success)' }}>6%</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-success)' }}>2%</div>
           </div>
           <div style={{ flex: 1, background: 'var(--color-surface-3)', borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Max Trades</div>
@@ -654,8 +666,8 @@ function SettingsPage() {
               ['Mode', '📄 Paper Trading'],
               ['Cryptos', 'BTC, ETH, SOL, XRP, DOGE, AVAX'],
               ['Capital simulé', '$540 (≈ 500€)'],
-              ['Stop-Loss', '3%'],
-              ['Take-Profit', '6%'],
+              ['Stop-Loss', '1%'],
+              ['Take-Profit', '2%'],
               ['Max Drawdown', '15%'],
               ['Intervalle', '15 minutes'],
               ['Max trades', '3 simultanés'],
@@ -669,14 +681,14 @@ function SettingsPage() {
         </div>
         <div className="divider" />
         <div style={{ marginTop: 20 }}>
-          <h3 style={{ color: 'var(--color-text)', marginBottom: 8, fontSize: 15 }}>🚀 Déploiement O2Switch</h3>
+          <h3 style={{ color: 'var(--color-text)', marginBottom: 8, fontSize: 15 }}>🚀 Architecture du Bot</h3>
           <div style={{ background: 'var(--color-surface-3)', borderRadius: 10, padding: 16, fontFamily: 'JetBrains Mono', fontSize: 12, lineHeight: 2 }}>
-            <div style={{ color: 'var(--color-text-muted)' }}># Connexion SSH</div>
-            <div style={{ color: 'var(--color-accent)' }}>ssh user@votre-domaine.com</div>
-            <div style={{ color: 'var(--color-text-muted)', marginTop: 8 }}># Build et démarrage</div>
-            <div style={{ color: 'var(--color-accent)' }}>cd fennec-ai/bot && npm install</div>
-            <div style={{ color: 'var(--color-accent)' }}>npm run build</div>
-            <div style={{ color: 'var(--color-accent)' }}>pm2 start ecosystem.config.js</div>
+            <div style={{ color: 'var(--color-text-muted)' }}># Hébergement Dashboard (Interface)</div>
+            <div style={{ color: 'var(--color-accent)' }}>O2Switch - https://fennec.eldzayer.com</div>
+            <div style={{ color: 'var(--color-text-muted)', marginTop: 8 }}># Serveur Bot de Trading (Logique & API)</div>
+            <div style={{ color: 'var(--color-accent)' }}>Railway - Node.js (Express)</div>
+            <div style={{ color: 'var(--color-text-muted)', marginTop: 8 }}># Connecteurs</div>
+            <div style={{ color: 'var(--color-accent)' }}>Coinbase Advanced Trade API (CDP JWT)</div>
           </div>
         </div>
       </div>
@@ -688,6 +700,12 @@ function SettingsPage() {
 // App Principale — Connexion réelle au bot Railway
 // =============================================
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('fennec_auth') === 'true');
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [showAbout, setShowAbout] = useState(false);
+
   const [page, setPage] = useState<NavPage>('dashboard');
   const [status, setStatus] = useState<BotStatus>(getMockStatus());
   const [prices, setPrices] = useState<CryptoPrice[]>(getMockPrices());
@@ -734,12 +752,13 @@ export default function App() {
 
   // Premier chargement + auto-refresh toutes les 30s
   useEffect(() => {
+    if (!isLoggedIn) return;
     loadData();
     refreshRef.current = setInterval(loadData, 30_000);
     return () => {
       if (refreshRef.current) clearInterval(refreshRef.current);
     };
-  }, [loadData]);
+  }, [loadData, isLoggedIn]);
 
   const handlePause = useCallback(async () => {
     try {
@@ -775,9 +794,53 @@ export default function App() {
 
   const { title, sub } = pageTitle[page];
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginUser === 'fennec' && loginPass === '@Fennec_2026@') {
+      setIsLoggedIn(true);
+      localStorage.setItem('fennec_auth', 'true');
+      setLoginError('');
+    } else {
+      setLoginError('Identifiants incorrects');
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="login-container">
+        <form className="login-form glass-panel" onSubmit={handleLogin}>
+          <div className="login-logo">
+            <img src="/logo.png" alt="Fennec AI" style={{ width: '48px', height: '48px', borderRadius: '12px' }} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerText = '🦊'; }} />
+          </div>
+          <h2>FENNEC AI</h2>
+          <p>Connexion au Dashboard</p>
+          <input 
+            type="text" 
+            placeholder="Nom d'utilisateur" 
+            value={loginUser}
+            onChange={(e) => setLoginUser(e.target.value)}
+          />
+          <input 
+            type="password" 
+            placeholder="Mot de passe" 
+            value={loginPass}
+            onChange={(e) => setLoginPass(e.target.value)}
+          />
+          {loginError && <div className="login-error">{loginError}</div>}
+          <button type="submit" className="login-btn">Se connecter</button>
+        </form>
+      </div>
+    );
+  }
+
+  const handleLogout = useCallback(() => {
+    setIsLoggedIn(false);
+    localStorage.removeItem('fennec_auth');
+  }, []);
+
   return (
     <div className="app">
-      <Sidebar page={page} onNav={setPage} />
+      <Sidebar page={page} onNav={setPage} onAbout={() => setShowAbout(true)} onLogout={handleLogout} />
       <main className="main-content">
         {/* Header */}
         <header className="header">
@@ -827,6 +890,24 @@ export default function App() {
         {page === 'signals' && <SignalsPage signals={signals} />}
         {page === 'settings' && <SettingsPage />}
       </main>
+
+      {/* Modale À Propos */}
+      {showAbout && (
+        <div className="modal-overlay" onClick={() => setShowAbout(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-logo">
+            <img src="/logo.png" alt="Fennec AI" style={{ width: '64px', height: '64px', borderRadius: '12px' }} onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerText = '🦊'; }} />
+          </div>
+          <h2>FENNEC AI</h2>
+            <h3>Bot de trading</h3>
+            <div className="modal-info">
+              <p>2026 - V1.0</p>
+              <p className="developer">Développé par<br/><strong>ARIOUL AMELAL</strong></p>
+            </div>
+            <button className="modal-close-btn" onClick={() => setShowAbout(false)}>Fermer</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

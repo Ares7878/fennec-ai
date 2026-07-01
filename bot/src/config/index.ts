@@ -36,8 +36,8 @@ export const config = {
       .split(',').map(p => p.trim()),
     maxTradeAmountUsd: parseFloat(optional('MAX_TRADE_AMOUNT_USD', '54')),
     maxPositionSize: parseFloat(optional('MAX_POSITION_SIZE', '0.10')),
-    defaultStopLoss: parseFloat(optional('DEFAULT_STOP_LOSS', '0.03')),
-    defaultTakeProfit: parseFloat(optional('DEFAULT_TAKE_PROFIT', '0.06')),
+    defaultStopLoss: parseFloat(optional('DEFAULT_STOP_LOSS', '0.01')),
+    defaultTakeProfit: parseFloat(optional('DEFAULT_TAKE_PROFIT', '0.02')),
     maxDrawdown: parseFloat(optional('MAX_DRAWDOWN', '0.15')),
     // Capital initial Paper Trading (500€ ≈ 540 USD)
     paperInitialBalance: parseFloat(optional('PAPER_INITIAL_BALANCE', '540')),

@@ -209,10 +209,10 @@ export class RiskManager {
       }
       const actualHigh = this.trailingHighs.get(pair) || currentPrice;
 
-      // Le SL remonte si le prix a monté de plus de 2%
-      // Nouveau SL = highWaterMark - 1.5% (protège les gains acquis)
-      const trailingActivationPct = 0.02; // Active le trailing après +2%
-      const trailDistance = 0.015; // Trail à 1.5% sous le high
+      // Le SL remonte si le prix a monté de plus de 0.3%
+      // Nouveau SL = highWaterMark - 0.2% (protège les gains acquis agressivement pour le micro-scalping)
+      const trailingActivationPct = 0.003; // Active le trailing après +0.3%
+      const trailDistance = 0.002; // Trail à 0.2% sous le high
 
       let effectiveStopLoss = stop_loss || 0;
       let newStopLoss: number | undefined;
