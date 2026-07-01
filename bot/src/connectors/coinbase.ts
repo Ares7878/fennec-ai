@@ -162,6 +162,9 @@ export class CoinbaseConnector {
   private priceCallbacks: Map<string, ((price: number) => void)[]> = new Map();
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT = 10;
+  private heartbeatTimer: NodeJS.Timeout | null = null; // 🆕 Heartbeat WebSocket
+  private lastPriceReceivedAt = 0;                      // 🆕 Timestamp dernier prix reçu
+  private readonly HEARTBEAT_TIMEOUT_MS = 60_000;        // 60s sans prix = reconnexion
 
   constructor() {
     this.http = axios.create({
@@ -412,6 +415,7 @@ export class CoinbaseConnector {
             for (const tick of (event.tickers || [])) {
               const price = parseFloat(tick.price);
               if (price > 0) {
+                this.lastPriceReceivedAt = Date.now(); // 🆕 Mise à jour heartbeat
                 onPrice(tick.product_id, price);
               }
             }
@@ -421,6 +425,18 @@ export class CoinbaseConnector {
         // Ignore les messages malformés
       }
     });
+
+    // 🆕 Heartbeat : vérifie que les prix arrivent toujours
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = setInterval(() => {
+      if (this.lastPriceReceivedAt > 0) {
+        const silenceSec = Math.floor((Date.now() - this.lastPriceReceivedAt) / 1000);
+        if (silenceSec > this.HEARTBEAT_TIMEOUT_MS / 1000) {
+          logger.warn(`⚠️ WebSocket silencieux depuis ${silenceSec}s — Reconnexion forcée...`);
+          this.ws?.terminate();
+        }
+      }
+    }, 30_000); // Vérifie toutes les 30 secondes
 
     this.ws.on('error', (err) => {
       logger.error('WebSocket erreur', { error: err.message });
@@ -438,6 +454,10 @@ export class CoinbaseConnector {
   }
 
   closeWebSocket(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;

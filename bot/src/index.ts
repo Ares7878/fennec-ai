@@ -7,6 +7,7 @@ import { TelegramNotifier } from './notifiers/telegram';
 import { RiskManager } from './risk/manager';
 import { TradingEngine } from './trading/engine';
 import { Scheduler } from './scheduler';
+import { startApiServer } from './api/server';
 
 // =============================================
 // 🦊 FENNEC AI — Point d'Entrée Principal
@@ -81,6 +82,12 @@ async function main(): Promise<void> {
   // 7. Démarrage du Moteur de Trading
   // =============================================
   await engine.start();
+
+  // =============================================
+  // 7b. Démarrage du Serveur API Dashboard
+  // =============================================
+  logger.info('🌐 Démarrage du serveur API dashboard...');
+  startApiServer(engine, riskManager);
 
   // =============================================
   // 8. Notification de Démarrage

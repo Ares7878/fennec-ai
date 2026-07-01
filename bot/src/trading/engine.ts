@@ -8,7 +8,7 @@ import { createStrategy, BaseStrategy, StrategySignal } from '../strategies';
 import { tradeQueries, signalQueries, portfolioQueries, TradeRecord } from '../database';
 
 // =============================================
-// Moteur de Trading Principal
+// Moteur de Trading Principal (version optimisée)
 // =============================================
 export class TradingEngine {
   private coinbase: CoinbaseConnector;
@@ -19,6 +19,10 @@ export class TradingEngine {
   private liveprices: Map<string, number> = new Map();
   private isRunning = false;
   private analysisInterval: NodeJS.Timeout | null = null;
+
+  // 🆕 Cooldown anti-overtrading : pair → timestamp du dernier trade
+  private lastTradeTime: Map<string, number> = new Map();
+  private readonly COOLDOWN_MS = config.strategy.tradeCooldownMinutes * 60 * 1000;
 
   constructor(
     coinbase: CoinbaseConnector,
@@ -58,7 +62,16 @@ export class TradingEngine {
         prices.push(`• ${pair}: $${price.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}`);
       });
 
-      return [
+      // Cooldown restant
+      const cooldowns: string[] = [];
+      this.lastTradeTime.forEach((ts, pair) => {
+        const remaining = Math.max(0, this.COOLDOWN_MS - (Date.now() - ts));
+        if (remaining > 0) {
+          cooldowns.push(`• ${pair}: ${Math.ceil(remaining / 60000)}min restantes`);
+        }
+      });
+
+      const lines = [
         `🦊 *Fennec AI — Status*`,
         `━━━━━━━━━━━━━━━━━━━━`,
         `🎯 Mode : *${config.trading.mode.toUpperCase()}${config.trading.mode === 'paper' ? ' (Simulation)' : ''}*`,
@@ -70,7 +83,13 @@ export class TradingEngine {
         ``,
         `📉 Drawdown : ${status.drawdown}`,
         `💸 Perte journalière : -$${status.dailyLoss.toFixed(2)}`,
-      ].join('\n');
+      ];
+
+      if (cooldowns.length > 0) {
+        lines.push(``, `⏳ *Cooldowns actifs :*`, ...cooldowns);
+      }
+
+      return lines.join('\n');
     });
 
     this.notifier.registerCommand('trades', async () => {
@@ -140,6 +159,9 @@ export class TradingEngine {
     logger.info('🚀 Démarrage du moteur de trading Fennec AI...');
     this.isRunning = true;
 
+    // 🆕 Rechargement des positions paper ouvertes au démarrage
+    this.paperEngine.reloadOpenPositions();
+
     // Abonnement aux prix en temps réel via WebSocket
     this.coinbase.subscribeToTicker(config.trading.pairs, (pair, price) => {
       this.liveprices.set(pair, price);
@@ -150,6 +172,7 @@ export class TradingEngine {
     // Analyse périodique selon l'intervalle choisi
     const intervalMs = this.getIntervalMs(config.strategy.candleInterval);
     logger.info(`⏱️ Analyse toutes les ${config.strategy.candleInterval} (${intervalMs / 1000}s)`);
+    logger.info(`⏳ Cooldown anti-overtrading : ${config.strategy.tradeCooldownMinutes} minutes`);
 
     // Première analyse immédiate
     await this.runAnalysisCycle();
@@ -163,6 +186,9 @@ export class TradingEngine {
     setInterval(async () => {
       await this.savePortfolioSnapshot();
     }, 60 * 60 * 1000);
+
+    // Sauvegarde du snapshot initial
+    await this.savePortfolioSnapshot();
 
     logger.info('✅ Moteur de trading démarré avec succès');
   }
@@ -214,8 +240,8 @@ export class TradingEngine {
     // Génération du signal
     const signal: StrategySignal = strategy.analyze(candles);
 
-    // Sauvegarde du signal
-    signalQueries.insert({
+    // Sauvegarde du signal en DB
+    const signalId = signalQueries.insert({
       pair,
       strategy: strategy.name,
       signal: signal.signal,
@@ -227,11 +253,17 @@ export class TradingEngine {
 
     logger.debug(`[${pair}] Signal: ${signal.signal.toUpperCase()} (force: ${(signal.strength * 100).toFixed(0)}%) | ${signal.reason}`);
 
+    // Seuil de force minimum configurable (défaut 0.55)
+    const minStrength = config.strategy.minSignalStrength;
+
     // Action selon le signal
-    if (signal.signal === 'buy' && signal.strength >= 0.5) {
-      await this.executeBuy(pair, signal, currentPrice);
-    } else if (signal.signal === 'sell' && signal.strength >= 0.5) {
-      await this.executeSell(pair, signal, currentPrice);
+    if (signal.signal === 'buy' && signal.strength >= minStrength) {
+      const executed = await this.executeBuy(pair, signal, currentPrice, candles);
+      // Marquer le signal comme "acted on" si un trade a été exécuté
+      if (executed) signalQueries.markActedOn(signalId);
+    } else if (signal.signal === 'sell' && signal.strength >= minStrength) {
+      const executed = await this.executeSell(pair, signal, currentPrice);
+      if (executed) signalQueries.markActedOn(signalId);
     }
   }
 
@@ -239,13 +271,21 @@ export class TradingEngine {
   // Exécution des Ordres
   // =============================================
 
-  private async executeBuy(pair: string, signal: StrategySignal, price: number): Promise<void> {
+  private async executeBuy(pair: string, signal: StrategySignal, price: number, candles: Candle[]): Promise<boolean> {
     const openTrades = tradeQueries.getOpen(pair);
 
     // Ne pas acheter si une position est déjà ouverte sur cette paire
     if (openTrades.length > 0) {
       logger.debug(`[${pair}] Position déjà ouverte — achat ignoré`);
-      return;
+      return false;
+    }
+
+    // 🆕 Vérification du cooldown anti-overtrading
+    const lastTrade = this.lastTradeTime.get(pair);
+    if (lastTrade && Date.now() - lastTrade < this.COOLDOWN_MS) {
+      const remainingMin = Math.ceil((this.COOLDOWN_MS - (Date.now() - lastTrade)) / 60000);
+      logger.debug(`[${pair}] Cooldown actif — ${remainingMin}min restantes`);
+      return false;
     }
 
     const allOpenTrades = tradeQueries.getOpen();
@@ -253,19 +293,27 @@ export class TradingEngine {
       ? this.paperEngine.getCashUSD()
       : await this.coinbase.getBalance('USD');
 
+    // 🆕 Extraire l'ATR des indicateurs pour le position sizing
+    const atrPercent = (signal.indicators as any)?.atr?.percent;
+
     const positionSize = this.riskManager.calculatePositionSize(
       cashUSD,
       price,
       allOpenTrades.length,
-      signal.strength
+      signal.strength,
+      atrPercent,
     );
 
     if (!positionSize.allowed) {
       logger.warn(`[${pair}] Achat refusé : ${positionSize.reason}`);
-      return;
+      return false;
     }
 
-    const exitLevels = this.riskManager.calculateExitLevels(price, 'buy');
+    // 🆕 Calcul du stop-loss/take-profit dynamique basé sur l'ATR
+    const atrValue = (signal.indicators as any)?.atr?.value;
+    const exitLevels = this.riskManager.calculateExitLevels(price, 'buy', atrValue);
+
+    logger.info(`[${pair}] 📐 Exit levels (${exitLevels.method}): SL=$${exitLevels.stopLoss.toFixed(2)} | TP=$${exitLevels.takeProfit.toFixed(2)}`);
 
     if (config.trading.mode === 'paper') {
       await this.paperEngine.buy(
@@ -308,18 +356,28 @@ export class TradingEngine {
         takeProfit: exitLevels.takeProfit,
       });
     }
+
+    // 🆕 Enregistrer le timestamp du dernier trade pour le cooldown
+    this.lastTradeTime.set(pair, Date.now());
+    return true;
   }
 
-  private async executeSell(pair: string, signal: StrategySignal, price: number): Promise<void> {
+  private async executeSell(pair: string, signal: StrategySignal, price: number): Promise<boolean> {
     const openTrades = tradeQueries.getOpen(pair);
-    if (openTrades.length === 0) return;
+    if (openTrades.length === 0) return false;
 
+    let executed = false;
     for (const trade of openTrades) {
       await this.closeTrade(trade, price, `Signal ${signal.signal.toUpperCase()} (${signal.reason})`);
+      executed = true;
     }
+    return executed;
   }
 
   private async closeTrade(trade: TradeRecord, price: number, reason: string): Promise<void> {
+    // 🆕 Nettoyer le trailing stop pour cette paire
+    this.riskManager.clearTrailing(trade.pair);
+
     if (config.trading.mode === 'paper') {
       await this.paperEngine.sell(trade, price, reason);
     } else {
@@ -344,6 +402,9 @@ export class TradingEngine {
 
         if (pnl < 0) this.riskManager.recordLoss(Math.abs(pnl));
 
+        // 🆕 Enregistrer le cooldown après une vente aussi
+        this.lastTradeTime.set(trade.pair, Date.now());
+
         await this.notifier.notifyTradeClose({
           pair: trade.pair, side: 'sell', price,
           quantity: trade.quantity,
@@ -357,17 +418,24 @@ export class TradingEngine {
   }
 
   // =============================================
-  // Surveillance des Positions Ouvertes
+  // Surveillance des Positions Ouvertes (WebSocket temps réel)
   // =============================================
 
   private async checkOpenTradesExitConditions(pair: string, currentPrice: number): Promise<void> {
     const openTrades = tradeQueries.getOpen(pair);
 
     for (const trade of openTrades) {
-      const { shouldClose, reason } = this.riskManager.checkExitConditions(trade, currentPrice);
-      if (shouldClose) {
-        logger.info(`[${pair}] 🎯 Fermeture automatique : ${reason}`);
-        await this.closeTrade(trade, currentPrice, reason);
+      const result = this.riskManager.checkExitConditions(trade, currentPrice);
+
+      // 🆕 Mise à jour du trailing stop-loss en base de données
+      if (result.newStopLoss && result.newStopLoss > (trade.stop_loss || 0)) {
+        tradeQueries.updateStopLoss(trade.id, result.newStopLoss);
+        logger.debug(`[${pair}] 📈 SL trailing mis à jour en DB : $${result.newStopLoss.toFixed(2)}`);
+      }
+
+      if (result.shouldClose) {
+        logger.info(`[${pair}] 🎯 Fermeture automatique : ${result.reason}`);
+        await this.closeTrade(trade, currentPrice, result.reason);
       }
     }
   }
@@ -399,8 +467,10 @@ export class TradingEngine {
         total_pnl: overallStats?.total_pnl || 0,
       });
 
-      this.riskManager.setPortfolioValue(10000, totalValue);
-      logger.debug(`📸 Snapshot portefeuille : $${totalValue.toFixed(2)}`);
+      // 🆕 Utiliser la valeur initiale de la config (pas 10000 hardcodé)
+      const initialValue = config.trading.paperInitialBalance;
+      this.riskManager.setPortfolioValue(initialValue, totalValue);
+      logger.debug(`📸 Snapshot portefeuille : $${totalValue.toFixed(2)} (initial: $${initialValue})`);
     } catch (err: any) {
       logger.error('Erreur snapshot portefeuille', { error: err.message });
     }

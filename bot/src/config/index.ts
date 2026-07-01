@@ -45,8 +45,11 @@ export const config = {
 
   // Strategy
   strategy: {
-    active: optional('ACTIVE_STRATEGY', 'rsi') as 'rsi' | 'macd' | 'ema_cross' | 'bollinger',
+    active: optional('ACTIVE_STRATEGY', 'consensus') as 'rsi' | 'macd' | 'ema_cross' | 'bollinger' | 'consensus',
     candleInterval: optional('CANDLE_INTERVAL', '15m'),
+    minConsensus: parseInt(optional('MIN_CONSENSUS', '3')), // Votes min pour la strat consensus
+    minSignalStrength: parseFloat(optional('MIN_SIGNAL_STRENGTH', '0.55')), // Force min du signal
+    tradeCooldownMinutes: parseInt(optional('TRADE_COOLDOWN_MINUTES', '60')), // Cooldown entre trades
   },
 
   // API Server (pour le dashboard web)

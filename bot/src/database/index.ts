@@ -132,6 +132,15 @@ export const tradeQueries = {
     return dbAll<TradeRecord>(`SELECT * FROM trades ORDER BY created_at DESC LIMIT ?`, [limit]);
   },
 
+  // 🆕 Marque un signal comme ayant déclenché un trade
+  // (appelé dans engine.ts après execution)
+  // Note : signalQueries.markActedOn est défini dans signalQueries, pas ici
+
+  // 🆕 Mise à jour du stop-loss (trailing stop)
+  updateStopLoss: (id: number, newStopLoss: number) => {
+    dbRun(`UPDATE trades SET stop_loss = ? WHERE id = ?`, [newStopLoss, id]);
+  },
+
   getDailyStats: (): DailyStats => {
     return dbGet<DailyStats>(`
       SELECT
@@ -139,10 +148,12 @@ export const tradeQueries = {
         SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
         SUM(pnl) as total_pnl,
         AVG(pnl_percent) as avg_pnl_percent,
-        SUM(fees) as total_fees
+        SUM(fees) as total_fees,
+        MAX(pnl) as best_trade,
+        MIN(pnl) as worst_trade
       FROM trades
       WHERE date(closed_at) = date('now') AND status = 'closed'
-    `) || { total_trades: 0, winning_trades: 0, total_pnl: 0, avg_pnl_percent: 0, total_fees: 0 };
+    `) || { total_trades: 0, winning_trades: 0, total_pnl: 0, avg_pnl_percent: 0, total_fees: 0, best_trade: 0, worst_trade: 0 };
   },
 
   getStats: (): OverallStats => {
@@ -195,6 +206,11 @@ export const signalQueries = {
     return dbAll<SignalRecord>(`
       SELECT * FROM signals WHERE pair = ? ORDER BY generated_at DESC LIMIT ?
     `, [pair, limit]);
+  },
+
+  // 🆕 Marque un signal comme utilisé pour exécuter un trade
+  markActedOn: (id: number) => {
+    dbRun(`UPDATE signals SET acted_on = 1 WHERE id = ?`, [id]);
   },
 };
 
@@ -306,6 +322,8 @@ export interface DailyStats {
   total_pnl: number;
   avg_pnl_percent: number;
   total_fees: number;
+  best_trade: number;   // 🆕 Meilleur trade du jour
+  worst_trade: number;  // 🆕 Pire trade du jour
 }
 
 export interface OverallStats {

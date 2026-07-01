@@ -1,5 +1,6 @@
 import { Candle } from '../connectors/coinbase';
 import { TechnicalAnalysis, FullIndicators } from './indicators';
+import { ConsensusStrategy } from './consensus';
 
 // =============================================
 // Types de Base
@@ -275,7 +276,10 @@ export function createStrategy(name: string, config: StrategyConfig): BaseStrate
     case 'macd': return new MACDStrategy(config);
     case 'ema_cross': return new EMACrossStrategy(config);
     case 'bollinger': return new BollingerStrategy(config);
+    case 'consensus': return new ConsensusStrategy(config);
     default:
-      throw new Error(`Stratégie inconnue : ${name}. Utilisez : rsi, macd, ema_cross, bollinger`);
+      throw new Error(`Stratégie inconnue : ${name}. Utilisez : rsi, macd, ema_cross, bollinger, consensus`);
   }
 }
+
+export { ConsensusStrategy };

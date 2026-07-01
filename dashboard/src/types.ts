@@ -64,6 +64,7 @@ export interface Signal {
   signal: 'buy' | 'sell' | 'hold';
   strength: number;
   price: number;
+  acted_on: boolean;  // true si ce signal a déclenché un trade
   created_at: string;
 }
 

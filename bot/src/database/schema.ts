@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_snapshot_at ON portfolio_snapshots(snap
 -- Données initiales
 -- =============================================
 INSERT OR IGNORE INTO bot_config (key, value) VALUES
-  ('paper_balance_usd', '10000'),
+  ('paper_balance_usd', '540'),
   ('bot_started_at', datetime('now')),
   ('version', '1.0.0');
 `;

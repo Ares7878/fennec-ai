@@ -64,8 +64,8 @@ export class Scheduler {
           winningTrades: dailyStats?.winning_trades || 0,
           losingTrades: (dailyStats?.total_trades || 0) - (dailyStats?.winning_trades || 0),
           totalPnl: dailyStats?.total_pnl || 0,
-          bestTrade: 0,
-          worstTrade: 0,
+          bestTrade: dailyStats?.best_trade || 0,   // 🆕 Vraie valeur (plus hardcodé)
+          worstTrade: dailyStats?.worst_trade || 0, // 🆕 Vraie valeur (plus hardcodé)
           totalFees: dailyStats?.total_fees || 0,
           portfolioValue,
           dailyChange,

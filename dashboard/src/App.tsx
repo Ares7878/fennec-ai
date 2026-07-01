@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import type {
-  BotStatus, CryptoPrice, Portfolio, Trade, Stats, PortfolioSnapshot, NavPage
+  BotStatus, CryptoPrice, Portfolio, Trade, Stats, PortfolioSnapshot, NavPage, Signal
 } from './types';
 import { CRYPTO_META } from './types';
 import {
   getMockStatus, getMockPrices, getMockPortfolio,
   getMockPortfolioHistory, getMockTrades, getMockStats,
+  fetchBotStatus, fetchPrices, fetchPortfolio,
+  fetchPortfolioHistory, fetchTrades, fetchStats, fetchSignals,
+  pauseBot, resumeBot, changeStrategy,
 } from './api';
 
 // =============================================
@@ -350,6 +353,7 @@ function BotControls({ status, strategy, onPause, onResume, onStrategyChange }: 
   onPause: () => void; onResume: () => void; onStrategyChange: (s: string) => void;
 }) {
   const strategies = [
+    { id: 'consensus', name: '🧠 Consensus', desc: '4-en-1 (Recommandé)' },
     { id: 'rsi', name: 'RSI', desc: 'Survente / Surachat' },
     { id: 'macd', name: 'MACD', desc: 'Croisements Signal' },
     { id: 'ema_cross', name: 'EMA Cross', desc: 'Golden / Death Cross' },
@@ -552,41 +556,76 @@ function TradesPage({ trades }: { trades: Trade[] }) {
 }
 
 // =============================================
-// Page: Signaux
+// Page: Signaux — Données réelles depuis la DB
 // =============================================
-function SignalsPage({ prices }: { prices: CryptoPrice[] }) {
-  const signals = prices.map(p => ({
-    pair: p.pair,
-    change: p.change24h,
-    signal: Math.abs(p.change24h) > 3 ? (p.change24h > 0 ? 'BUY' : 'SELL') : 'HOLD',
-  }));
+function SignalsPage({ signals, prices }: { signals: Signal[]; prices: CryptoPrice[] }) {
+  // Si pas de signaux réels, afficher un placeholder
+  if (signals.length === 0) {
+    return (
+      <div className="card animate-in">
+        <div className="card-header">
+          <span className="card-title">📡 Signaux Consensus</span>
+        </div>
+        <div className="empty-state">
+          <div className="icon">📡</div>
+          <p>En attente des premiers signaux...</p>
+          <p style={{ fontSize: 11, opacity: 0.6 }}>Le bot analyse les marchés toutes les 15 minutes</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card animate-in">
       <div className="card-header">
-        <span className="card-title">📡 Signaux Temps Réel</span>
+        <span className="card-title">📡 Signaux Consensus (4-en-1)</span>
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{signals.length} signaux</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {signals.map(s => (
-          <div key={s.pair} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 16px', background: 'var(--color-surface-3)', borderRadius: 10,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>{CRYPTO_META[s.pair]?.emoji || '🪙'}</span>
-              <div>
-                <div style={{ fontWeight: 700 }}>{s.pair.split('-')[0]}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                  {s.change > 0 ? '+' : ''}{s.change.toFixed(2)}% sur 24h
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {signals.map(s => {
+          const meta = CRYPTO_META[s.pair] || { emoji: '🪙', color: '#888' };
+          return (
+            <div key={s.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '12px 16px', background: 'var(--color-surface-3)', borderRadius: 10,
+              borderLeft: `3px solid ${
+                s.signal === 'buy' ? 'var(--color-success)'
+                : s.signal === 'sell' ? 'var(--color-danger)'
+                : 'var(--color-text-dim)'
+              }`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20 }}>{meta.emoji}</span>
+                <div>
+                  <div style={{ fontWeight: 700 }}>{s.pair.split('-')[0]}</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    {s.strategy.toUpperCase()} • ${s.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                  </div>
                 </div>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* Barre de force du signal */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>Force: {(s.strength * 100).toFixed(0)}%</span>
+                  <div style={{ width: 60, height: 4, background: 'var(--color-surface-2)', borderRadius: 2 }}>
+                    <div style={{
+                      width: `${s.strength * 100}%`, height: '100%',
+                      background: s.signal === 'buy' ? 'var(--color-success)' : s.signal === 'sell' ? 'var(--color-danger)' : 'var(--color-text-dim)',
+                      borderRadius: 2,
+                    }} />
+                  </div>
+                </div>
+                <span className={`badge ${
+                  s.signal === 'buy' ? 'badge-buy'
+                  : s.signal === 'sell' ? 'badge-sell'
+                  : 'badge-closed'
+                }`} style={{ fontSize: 12, padding: '5px 12px' }}>
+                  {s.acted_on ? '✅ ' : ''}{s.signal.toUpperCase()}
+                </span>
+              </div>
             </div>
-            <span className={`badge ${s.signal === 'BUY' ? 'badge-buy' : s.signal === 'SELL' ? 'badge-sell' : 'badge-closed'}`}
-              style={{ fontSize: 12, padding: '5px 12px' }}>
-              {s.signal}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -646,41 +685,84 @@ function SettingsPage() {
 }
 
 // =============================================
-// App Principale
+// App Principale — Connexion réelle au bot Railway
 // =============================================
 export default function App() {
   const [page, setPage] = useState<NavPage>('dashboard');
   const [status, setStatus] = useState<BotStatus>(getMockStatus());
   const [prices, setPrices] = useState<CryptoPrice[]>(getMockPrices());
-  const [portfolio, /* setPortfolio */] = useState<Portfolio>(getMockPortfolio());
-  const [portfolioHistory, /* setPortfolioHistory */] = useState<PortfolioSnapshot[]>(getMockPortfolioHistory());
-  const [trades, /* setTrades */] = useState<Trade[]>(getMockTrades());
-  const [stats, /* setStats */] = useState<Stats>(getMockStats());
+  const [portfolio, setPortfolio] = useState<Portfolio>(getMockPortfolio());
+  const [portfolioHistory, setPortfolioHistory] = useState<PortfolioSnapshot[]>(getMockPortfolioHistory());
+  const [trades, setTrades] = useState<Trade[]>(getMockTrades());
+  const [stats, setStats] = useState<Stats>(getMockStats());
+  const [signals, setSignals] = useState<Signal[]>([]);
   const [selectedPair, setSelectedPair] = useState('BTC-USD');
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [isOnline, setIsOnline] = useState<boolean | null>(null); // null = connecting
+  const refreshRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Simulation de mise à jour des prix en temps réel (demo mode)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPrices(prev => prev.map(p => ({
-        ...p,
-        price: p.price * (1 + (Math.random() - 0.5) * 0.002),
-        lastUpdated: new Date(),
-      })));
+  // =============================================
+  // Chargement des données réelles depuis l'API
+  // =============================================
+  const loadData = useCallback(async () => {
+    try {
+      const [botStatus, botPrices, botPortfolio, botHistory, botTrades, botStats, botSignals] = await Promise.all([
+        fetchBotStatus(),
+        fetchPrices(),
+        fetchPortfolio(),
+        fetchPortfolioHistory(),
+        fetchTrades(50),
+        fetchStats(),
+        fetchSignals(40),
+      ]);
+
+      if (botStatus) { setStatus(botStatus); setIsOnline(true); }
+      else { setIsOnline(false); }
+
+      if (botPrices && botPrices.length > 0) setPrices(botPrices);
+      if (botPortfolio) setPortfolio(botPortfolio);
+      if (botHistory && botHistory.length > 0) setPortfolioHistory(botHistory);
+      if (botTrades) setTrades(botTrades);
+      if (botStats) setStats(botStats);
+      if (botSignals) setSignals(botSignals);
+
       setLastUpdate(new Date());
-    }, 3000);
-    return () => clearInterval(interval);
+    } catch {
+      setIsOnline(false);
+    }
   }, []);
 
-  const handlePause = useCallback(() => {
-    setStatus(prev => ({ ...prev, paused: true }));
+  // Premier chargement + auto-refresh toutes les 30s
+  useEffect(() => {
+    loadData();
+    refreshRef.current = setInterval(loadData, 30_000);
+    return () => {
+      if (refreshRef.current) clearInterval(refreshRef.current);
+    };
+  }, [loadData]);
+
+  const handlePause = useCallback(async () => {
+    try {
+      await pauseBot();
+      setStatus(prev => ({ ...prev, paused: true }));
+    } catch {
+      setStatus(prev => ({ ...prev, paused: true })); // fallback local
+    }
   }, []);
 
-  const handleResume = useCallback(() => {
-    setStatus(prev => ({ ...prev, paused: false }));
+  const handleResume = useCallback(async () => {
+    try {
+      await resumeBot();
+      setStatus(prev => ({ ...prev, paused: false }));
+    } catch {
+      setStatus(prev => ({ ...prev, paused: false }));
+    }
   }, []);
 
-  const handleStrategyChange = useCallback((strategy: string) => {
+  const handleStrategyChange = useCallback(async (strategy: string) => {
+    try {
+      await changeStrategy(strategy);
+    } catch { /* ignore */ }
     setStatus(prev => ({ ...prev, strategy }));
   }, []);
 
@@ -704,6 +786,17 @@ export default function App() {
             <p>{sub}</p>
           </div>
           <div className="header-right">
+            {/* Indicateur de connexion au bot */}
+            <span style={{
+              fontSize: 11,
+              color: isOnline === null ? 'var(--color-text-muted)'
+                   : isOnline ? 'var(--color-success)'
+                   : 'var(--color-danger)',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              <span style={{ fontSize: 8 }}>●</span>
+              {isOnline === null ? 'Connexion...' : isOnline ? `Bot en ligne` : '⚠️ Bot hors ligne'}
+            </span>
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
               Mis à jour: {lastUpdate.toLocaleTimeString('fr-FR')}
             </span>
@@ -731,7 +824,7 @@ export default function App() {
           />
         )}
         {page === 'trades' && <TradesPage trades={trades} />}
-        {page === 'signals' && <SignalsPage prices={prices} />}
+        {page === 'signals' && <SignalsPage signals={signals} prices={prices} />}
         {page === 'settings' && <SettingsPage />}
       </main>
     </div>

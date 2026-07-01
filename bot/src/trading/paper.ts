@@ -55,7 +55,7 @@ export class PaperTradingEngine {
     const currency = pair.split('-')[0]; // Ex: BTC de BTC-USD
 
     // Vérification du capital disponible
-    const fee = amountUSD * 0.006; // 0.6% de frais simulés
+    const fee = amountUSD * 0.0025; // 0.25% frais taker Coinbase Advanced Trade (réaliste)
     const totalCost = amountUSD + fee;
 
     if (totalCost > this.portfolio.cashUSD) {
@@ -130,7 +130,7 @@ export class PaperTradingEngine {
     }
 
     const grossRevenue = trade.quantity * currentPrice;
-    const fee = grossRevenue * 0.006;
+    const fee = grossRevenue * 0.0025; // 0.25% frais taker Coinbase Advanced Trade
     const netRevenue = grossRevenue - fee;
 
     const pnl = netRevenue - trade.amount_usd - trade.fees;
@@ -193,6 +193,46 @@ export class PaperTradingEngine {
 
   getHoldings(): Map<string, { quantity: number; avgPrice: number }> {
     return this.portfolio.holdings;
+  }
+
+  /**
+   * 🆕 Recharge les positions ouvertes depuis la base de données
+   * Appelé au démarrage pour reconstruire le portefeuille en mémoire
+   * En cas de redémarrage du bot, les positions ne sont plus perdues
+   */
+  reloadOpenPositions(): void {
+    const openTrades = tradeQueries.getOpen();
+    const paperTrades = openTrades.filter(t => t.mode === 'paper');
+
+    if (paperTrades.length === 0) {
+      logger.info('[PAPER] Aucune position ouverte à recharger');
+      return;
+    }
+
+    // Reconstruire les holdings depuis les trades ouverts
+    for (const trade of paperTrades) {
+      const currency = trade.pair.split('-')[0];
+      const existing = this.portfolio.holdings.get(currency);
+
+      if (existing) {
+        // Moyenne des prix si plusieurs trades sur la même devise
+        const totalQty = existing.quantity + trade.quantity;
+        existing.avgPrice = (
+          existing.avgPrice * existing.quantity + trade.entry_price * trade.quantity
+        ) / totalQty;
+        existing.quantity = totalQty;
+      } else {
+        this.portfolio.holdings.set(currency, {
+          quantity: trade.quantity,
+          avgPrice: trade.entry_price,
+        });
+      }
+    }
+
+    logger.info(`[PAPER] ✅ ${paperTrades.length} position(s) rechargée(s) depuis la DB`);
+    paperTrades.forEach(t => {
+      logger.info(`  • ${t.pair}: ${t.quantity.toFixed(6)} @ $${t.entry_price}`);
+    });
   }
 
   getSummary(prices: Map<string, number>): string {
