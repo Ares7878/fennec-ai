@@ -36,9 +36,10 @@ export const config = {
       .split(',').map(p => p.trim()),
     maxTradeAmountUsd: parseFloat(optional('MAX_TRADE_AMOUNT_USD', '54')),
     maxPositionSize: parseFloat(optional('MAX_POSITION_SIZE', '0.10')),
-    defaultStopLoss: parseFloat(optional('DEFAULT_STOP_LOSS', '0.01')),
-    defaultTakeProfit: parseFloat(optional('DEFAULT_TAKE_PROFIT', '0.02')),
+    defaultStopLoss: parseFloat(optional('DEFAULT_STOP_LOSS', '0.03')),
+    defaultTakeProfit: parseFloat(optional('DEFAULT_TAKE_PROFIT', '0.06')),
     maxDrawdown: parseFloat(optional('MAX_DRAWDOWN', '0.15')),
+    maxDailyTrades: parseInt(optional('MAX_DAILY_TRADES', '6')),
     // Capital initial Paper Trading (500€ ≈ 540 USD)
     paperInitialBalance: parseFloat(optional('PAPER_INITIAL_BALANCE', '540')),
   },
@@ -46,10 +47,16 @@ export const config = {
   // Strategy
   strategy: {
     active: optional('ACTIVE_STRATEGY', 'consensus') as 'rsi' | 'macd' | 'ema_cross' | 'bollinger' | 'consensus',
-    candleInterval: optional('CANDLE_INTERVAL', '15m'),
+    candleInterval: optional('CANDLE_INTERVAL', '1h'),
     minConsensus: parseInt(optional('MIN_CONSENSUS', '3')), // Votes min pour la strat consensus
-    minSignalStrength: parseFloat(optional('MIN_SIGNAL_STRENGTH', '0.55')), // Force min du signal
-    tradeCooldownMinutes: parseInt(optional('TRADE_COOLDOWN_MINUTES', '60')), // Cooldown entre trades
+    minSignalStrength: parseFloat(optional('MIN_SIGNAL_STRENGTH', '0.65')), // Force min du signal (relevé pour filtrer les faux signaux)
+    tradeCooldownMinutes: parseInt(optional('TRADE_COOLDOWN_MINUTES', '120')), // Cooldown entre trades (2h)
+    // Trailing stop parameters
+    trailingActivationPct: parseFloat(optional('TRAILING_ACTIVATION_PCT', '0.015')), // +1.5% avant activation
+    trailingDistancePct: parseFloat(optional('TRAILING_DISTANCE_PCT', '0.01')),     // Trail à 1.0% sous le high
+    breakEvenActivationPct: parseFloat(optional('BREAKEVEN_ACTIVATION_PCT', '0.01')), // Breakeven après +1%
+    // ADX minimum pour considérer qu'il y a une tendance
+    minADX: parseFloat(optional('MIN_ADX', '20')),
   },
 
   // API Server (pour le dashboard web)

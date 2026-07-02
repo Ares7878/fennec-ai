@@ -293,6 +293,12 @@ export class TradingEngine {
       return false;
     }
 
+    // 🆕 Vérification du compteur journalier
+    if (!this.riskManager.canTrade()) {
+      logger.debug(`[${pair}] Max trades journaliers atteint`);
+      return false;
+    }
+
     const allOpenTrades = tradeQueries.getOpen();
     const cashUSD = config.trading.mode === 'paper'
       ? this.paperEngine.getCashUSD()
@@ -364,6 +370,8 @@ export class TradingEngine {
 
     // 🆕 Enregistrer le timestamp du dernier trade pour le cooldown
     this.lastTradeTime.set(pair, Date.now());
+    // 🆕 Enregistrer le trade dans le compteur journalier
+    this.riskManager.recordTrade();
     return true;
   }
 
@@ -430,7 +438,10 @@ export class TradingEngine {
     const openTrades = tradeQueries.getOpen(pair);
 
     for (const trade of openTrades) {
-      const result = this.riskManager.checkExitConditions(trade, currentPrice);
+      const result = this.riskManager.checkExitConditions(
+        { ...trade, fees: trade.fees || 0 },
+        currentPrice
+      );
 
       // 🆕 Mise à jour du trailing stop-loss en base de données
       if (result.newStopLoss && result.newStopLoss > (trade.stop_loss || 0)) {

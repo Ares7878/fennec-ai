@@ -1,14 +1,20 @@
 import { Candle } from '../connectors/coinbase';
 import { TechnicalAnalysis, FullIndicators } from './indicators';
 import { BaseStrategy, StrategySignal, StrategyConfig } from './base';
+import { config } from '../config';
 
 // =============================================
-// 🧠 Stratégie Consensus Multi-Signal
+// 🧠 Stratégie Consensus Multi-Signal v2.0
 // =============================================
-// Agrège RSI + MACD + EMA + Bollinger.
-// N'exécute un trade que si au moins 3 stratégies
-// sur 4 sont en accord (seuil configurable).
-// Ajoute un filtre de tendance macro (EMA200).
+// VERSION OPTIMISÉE — Corrections des faux signaux
+//
+// Changements majeurs par rapport à v1.0 :
+// ✅ Les signaux MACD "faibles" (histogram seul) ne comptent plus
+// ✅ La tendance EMA seule ne compte plus (seulement Golden/Death Cross)
+// ✅ Filtre ADX : pas de trade si ADX < 20 (marché en range)
+// ✅ Volume minimum global requis (ratio > 0.8)
+// ✅ Divergence RSI comme bonus de confirmation
+// ✅ Stochastique comme confirmation supplémentaire
 // =============================================
 
 interface SubSignal {
@@ -20,10 +26,12 @@ interface SubSignal {
 
 export class ConsensusStrategy extends BaseStrategy {
   readonly name = 'consensus';
-  readonly description = 'Agrégation multi-signal (RSI+MACD+EMA+Bollinger) avec filtre EMA200';
+  readonly description = 'Consensus multi-signal v2.0 (RSI+MACD+EMA+BB) avec filtres ADX/Volume/Divergence';
 
   // Seuil minimum de signaux concordants pour trader
   private readonly MIN_CONSENSUS = parseInt(process.env.MIN_CONSENSUS || '3');
+  // ADX minimum pour considérer qu'il y a une tendance tradable
+  private readonly MIN_ADX = config.strategy.minADX;
 
   analyze(candles: Candle[]): StrategySignal {
     if (!this.hasEnoughData(candles, 210)) {
@@ -37,40 +45,51 @@ export class ConsensusStrategy extends BaseStrategy {
     }
 
     const price = candles[candles.length - 1].close;
-    const { rsi, macd, ema, bollinger, volume, atr } = indicators;
+    const { rsi, macd, ema, bollinger, volume, atr, adx, stochastic, rsiDivergence } = indicators;
 
     // =============================================
-    // Filtre Tendance Macro : EMA200
+    // 🛡️ FILTRE #1 : ADX — Marché en Range
     // =============================================
-    // On n'achète que si le prix est AU-DESSUS de l'EMA200
-    // On ne vend que si le prix est EN-DESSOUS de l'EMA200
+    // Si ADX < 20, le marché est latéral (ranging).
+    // Les indicateurs de momentum (RSI, MACD) génèrent des
+    // faux signaux dans ce cas → on ne trade PAS.
+    if (!adx.trending) {
+      return this.holdSignal(
+        price,
+        `⏸️ ADX trop faible (${adx.value.toFixed(1)} < ${this.MIN_ADX}) — Marché en range, pas de trade`
+      );
+    }
+
+    // =============================================
+    // 🛡️ FILTRE #2 : Volume Minimum Global
+    // =============================================
+    // Pas de trade si le volume est anormalement bas
+    if (volume.ratio < 0.8) {
+      return this.holdSignal(
+        price,
+        `📉 Volume trop faible (ratio: ${volume.ratio.toFixed(2)} < 0.8) — Pas de confirmation`
+      );
+    }
+
+    // =============================================
+    // 🛡️ FILTRE #3 : Tendance Macro EMA200
+    // =============================================
+    // Filtre OBLIGATOIRE : on n'achète que au-dessus de l'EMA200
     const macroTrendBullish = ema.ema200 > 0 ? price > ema.ema200 : true;
     const macroTrendBearish = ema.ema200 > 0 ? price < ema.ema200 : true;
 
     // =============================================
-    // Sous-signal RSI
+    // Sous-signaux (seulement des signaux FORTS)
     // =============================================
-    const rsiSignal = this.evalRSI(rsi, ema, volume);
-
-    // =============================================
-    // Sous-signal MACD
-    // =============================================
+    const rsiSignal = this.evalRSI(rsi, ema, volume, stochastic);
     const macdSignal = this.evalMACD(macd, rsi, volume);
-
-    // =============================================
-    // Sous-signal EMA Cross
-    // =============================================
     const emaCrossSignal = this.evalEMACross(ema, price, volume);
-
-    // =============================================
-    // Sous-signal Bollinger
-    // =============================================
     const bollingerSignal = this.evalBollinger(bollinger, rsi);
 
     const allSignals: SubSignal[] = [rsiSignal, macdSignal, emaCrossSignal, bollingerSignal];
 
     // =============================================
-    // Comptage des votes
+    // Comptage des votes (signaux forts uniquement)
     // =============================================
     const buyVotes = allSignals.filter((s) => s.direction === 'buy');
     const sellVotes = allSignals.filter((s) => s.direction === 'sell');
@@ -79,125 +98,143 @@ export class ConsensusStrategy extends BaseStrategy {
     const sellCount = sellVotes.length;
 
     // =============================================
-    // Signal BUY : consensus + filtre macro
+    // Signal BUY : consensus + filtre macro + ADX
     // =============================================
     if (buyCount >= this.MIN_CONSENSUS && macroTrendBullish) {
       const avgStrength = buyVotes.reduce((s, v) => s + v.strength, 0) / buyVotes.length;
-      const bonusMacroAlignment = ema.trend === 'bullish' ? 0.1 : 0;
-      const finalStrength = Math.min(1, avgStrength + bonusMacroAlignment + (buyCount === 4 ? 0.1 : 0));
+
+      // Bonus : alignement complet de la macro-tendance
+      let bonus = 0;
+      if (ema.trend === 'bullish') bonus += 0.05;
+      if (adx.trendDirection === 'bullish') bonus += 0.05;
+      // Bonus divergence RSI haussière (signal très fort)
+      if (rsiDivergence.bullish) bonus += 0.1;
+      // Bonus si stochastique confirme (survendu)
+      if (stochastic.oversold) bonus += 0.05;
+      // Bonus consensus unanime
+      if (buyCount === 4) bonus += 0.1;
+
+      const finalStrength = Math.min(1, avgStrength + bonus);
 
       const reasons = buyVotes.map((s) => `${s.name}(${(s.strength * 100).toFixed(0)}%)`).join(' + ');
+      const extras: string[] = [];
+      if (rsiDivergence.bullish) extras.push('RSI Divergence ✅');
+      if (stochastic.oversold) extras.push('Stoch survendu ✅');
+      if (adx.trendDirection === 'bullish') extras.push(`ADX ${adx.value.toFixed(0)} ✅`);
 
       return {
         signal: 'buy',
         strength: finalStrength,
-        reason: `Consensus ${buyCount}/4 : ${reasons}${ema.trend === 'bullish' ? ' | Tendance haussière ✅' : ''}`,
+        reason: `Consensus ${buyCount}/4 : ${reasons}${extras.length ? ' | ' + extras.join(' ') : ''}`,
         indicators,
         price,
       };
     }
 
     // =============================================
-    // Signal SELL : consensus + filtre macro
+    // Signal SELL : consensus + filtre macro + ADX
     // =============================================
     if (sellCount >= this.MIN_CONSENSUS && macroTrendBearish) {
       const avgStrength = sellVotes.reduce((s, v) => s + v.strength, 0) / sellVotes.length;
-      const bonusMacroAlignment = ema.trend === 'bearish' ? 0.1 : 0;
-      const finalStrength = Math.min(1, avgStrength + bonusMacroAlignment + (sellCount === 4 ? 0.1 : 0));
+
+      let bonus = 0;
+      if (ema.trend === 'bearish') bonus += 0.05;
+      if (adx.trendDirection === 'bearish') bonus += 0.05;
+      if (rsiDivergence.bearish) bonus += 0.1;
+      if (stochastic.overbought) bonus += 0.05;
+      if (sellCount === 4) bonus += 0.1;
+
+      const finalStrength = Math.min(1, avgStrength + bonus);
 
       const reasons = sellVotes.map((s) => `${s.name}(${(s.strength * 100).toFixed(0)}%)`).join(' + ');
+      const extras: string[] = [];
+      if (rsiDivergence.bearish) extras.push('RSI Divergence ✅');
+      if (stochastic.overbought) extras.push('Stoch surachat ✅');
+      if (adx.trendDirection === 'bearish') extras.push(`ADX ${adx.value.toFixed(0)} ✅`);
 
       return {
         signal: 'sell',
         strength: finalStrength,
-        reason: `Consensus ${sellCount}/4 : ${reasons}${ema.trend === 'bearish' ? ' | Tendance baissière ✅' : ''}`,
+        reason: `Consensus ${sellCount}/4 : ${reasons}${extras.length ? ' | ' + extras.join(' ') : ''}`,
         indicators,
         price,
       };
     }
 
-    // HOLD : pas assez de consensus ou filtre macro bloque
+    // HOLD : pas assez de consensus ou filtres bloquent
     const detail = `Buy:${buyCount} Sell:${sellCount} (min:${this.MIN_CONSENSUS}) | ` +
-      `RSI:${rsi.value.toFixed(0)} EMA:${ema.trend} MACD:${macd.crossover}`;
+      `RSI:${rsi.value.toFixed(0)} EMA:${ema.trend} MACD:${macd.crossover} ADX:${adx.value.toFixed(0)}`;
     return this.holdSignal(price, detail);
   }
 
   // =============================================
-  // Évaluation RSI
+  // Évaluation RSI (avec confirmation Stochastique)
   // =============================================
   private evalRSI(
     rsi: FullIndicators['rsi'],
     ema: FullIndicators['ema'],
-    volume: FullIndicators['volume']
+    volume: FullIndicators['volume'],
+    stochastic: FullIndicators['stochastic']
   ): SubSignal {
-    // Achat : RSI survendu (<32) + tendance RSI à la hausse
-    if (rsi.value < 32 && rsi.trend === 'up' && ema.trend !== 'bearish' && volume.ratio > 0.7) {
-      const strength = Math.min(1, 0.5 + (32 - rsi.value) / 25 + (volume.ratio > 1.5 ? 0.15 : 0));
+    // Achat : RSI survendu (<32) + tendance RSI à la hausse + stochastique confirme
+    if (rsi.value < 32 && rsi.trend === 'up' && ema.trend !== 'bearish' && volume.ratio > 0.8) {
+      const stochBonus = stochastic.oversold ? 0.1 : 0;
+      const strength = Math.min(1, 0.55 + (32 - rsi.value) / 25 + (volume.ratio > 1.5 ? 0.15 : 0) + stochBonus);
       return { name: 'RSI', direction: 'buy', strength, reason: `RSI survendu ${rsi.value.toFixed(0)}` };
     }
-    // Vente : RSI surachat (>68) + tendance RSI à la baisse
-    if (rsi.value > 68 && rsi.trend === 'down' && ema.trend !== 'bullish' && volume.ratio > 0.7) {
-      const strength = Math.min(1, 0.5 + (rsi.value - 68) / 25 + (volume.ratio > 1.5 ? 0.15 : 0));
+    // Vente : RSI surachat (>68) + tendance RSI à la baisse + stochastique confirme
+    if (rsi.value > 68 && rsi.trend === 'down' && ema.trend !== 'bullish' && volume.ratio > 0.8) {
+      const stochBonus = stochastic.overbought ? 0.1 : 0;
+      const strength = Math.min(1, 0.55 + (rsi.value - 68) / 25 + (volume.ratio > 1.5 ? 0.15 : 0) + stochBonus);
       return { name: 'RSI', direction: 'sell', strength, reason: `RSI surachat ${rsi.value.toFixed(0)}` };
     }
     return { name: 'RSI', direction: 'hold', strength: 0, reason: `RSI neutre ${rsi.value.toFixed(0)}` };
   }
 
   // =============================================
-  // Évaluation MACD
+  // Évaluation MACD (SEULEMENT les croisements forts)
   // =============================================
   private evalMACD(
     macd: FullIndicators['macd'],
     rsi: FullIndicators['rsi'],
     volume: FullIndicators['volume']
   ): SubSignal {
-    // Croisement haussier MACD
+    // ✅ Croisement haussier MACD (signal FORT uniquement)
     if (macd.crossover === 'bullish' && rsi.value < 65 && volume.ratio > 1.0) {
-      const strength = Math.min(1, 0.55 + (volume.ratio > 2 ? 0.2 : 0) + (rsi.value < 40 ? 0.15 : 0));
+      const strength = Math.min(1, 0.6 + (volume.ratio > 2 ? 0.2 : 0) + (rsi.value < 40 ? 0.15 : 0));
       return { name: 'MACD', direction: 'buy', strength, reason: `Croisement haussier` };
     }
-    // Croisement baissier MACD
+    // ✅ Croisement baissier MACD (signal FORT uniquement)
     if (macd.crossover === 'bearish' && rsi.value > 35 && volume.ratio > 1.0) {
-      const strength = Math.min(1, 0.55 + (volume.ratio > 2 ? 0.2 : 0) + (rsi.value > 60 ? 0.15 : 0));
+      const strength = Math.min(1, 0.6 + (volume.ratio > 2 ? 0.2 : 0) + (rsi.value > 60 ? 0.15 : 0));
       return { name: 'MACD', direction: 'sell', strength, reason: `Croisement baissier` };
     }
-    // Signal faible mais présent : histogram en tendance
-    if (macd.histogram > 0 && macd.macd > 0) {
-      return { name: 'MACD', direction: 'buy', strength: 0.35, reason: `Histogram positif` };
-    }
-    if (macd.histogram < 0 && macd.macd < 0) {
-      return { name: 'MACD', direction: 'sell', strength: 0.35, reason: `Histogram négatif` };
-    }
+    // ❌ SUPPRIMÉ : les signaux "faibles" (histogram positif/négatif sans croisement)
+    // ne comptent PLUS comme votes. Ils généraient des faux consensus.
     return { name: 'MACD', direction: 'hold', strength: 0, reason: `Pas de croisement` };
   }
 
   // =============================================
-  // Évaluation EMA Cross
+  // Évaluation EMA Cross (SEULEMENT Golden/Death Cross)
   // =============================================
   private evalEMACross(
     ema: FullIndicators['ema'],
     price: number,
     volume: FullIndicators['volume']
   ): SubSignal {
-    // Golden Cross (fort)
+    // ✅ Golden Cross (signal FORT) — EMA20 croise EMA50 vers le haut
     if (ema.goldenCross && price > ema.ema200) {
       const strength = Math.min(1, 0.7 + (volume.ratio > 1.5 ? 0.2 : 0));
       return { name: 'EMA', direction: 'buy', strength, reason: `Golden Cross` };
     }
-    // Death Cross (fort)
+    // ✅ Death Cross (signal FORT) — EMA20 croise EMA50 vers le bas
     if (ema.deathCross && price < ema.ema200) {
       const strength = Math.min(1, 0.7 + (volume.ratio > 1.5 ? 0.2 : 0));
       return { name: 'EMA', direction: 'sell', strength, reason: `Death Cross` };
     }
-    // Tendance bullish confirmée (EMA20 > EMA50 > EMA200)
-    if (ema.trend === 'bullish') {
-      return { name: 'EMA', direction: 'buy', strength: 0.5, reason: `Tendance haussière` };
-    }
-    // Tendance bearish confirmée
-    if (ema.trend === 'bearish') {
-      return { name: 'EMA', direction: 'sell', strength: 0.5, reason: `Tendance baissière` };
-    }
-    return { name: 'EMA', direction: 'hold', strength: 0, reason: `Neutre` };
+    // ❌ SUPPRIMÉ : tendance bullish/bearish seule ne compte plus.
+    // La tendance EMA est utilisée comme FILTRE macro, pas comme vote.
+    return { name: 'EMA', direction: 'hold', strength: 0, reason: `Neutre (pas de cross)` };
   }
 
   // =============================================
@@ -213,12 +250,12 @@ export class ConsensusStrategy extends BaseStrategy {
     }
     // Rebond sur bande inférieure + RSI survendu
     if (bollinger.percentB < 0.08 && rsi.value < 38) {
-      const strength = Math.min(1, 0.5 + (1 - bollinger.percentB) * 0.4 + (32 - Math.min(32, rsi.value)) / 100);
+      const strength = Math.min(1, 0.55 + (1 - bollinger.percentB) * 0.35 + (32 - Math.min(32, rsi.value)) / 100);
       return { name: 'BB', direction: 'buy', strength, reason: `Bande inférieure B%:${(bollinger.percentB * 100).toFixed(0)}%` };
     }
     // Rebond sur bande supérieure + RSI surachat
     if (bollinger.percentB > 0.92 && rsi.value > 62) {
-      const strength = Math.min(1, 0.5 + bollinger.percentB * 0.4 + (rsi.value - 62) / 100);
+      const strength = Math.min(1, 0.55 + bollinger.percentB * 0.35 + (rsi.value - 62) / 100);
       return { name: 'BB', direction: 'sell', strength, reason: `Bande supérieure B%:${(bollinger.percentB * 100).toFixed(0)}%` };
     }
     return { name: 'BB', direction: 'hold', strength: 0, reason: `B%:${(bollinger.percentB * 100).toFixed(0)}%` };

@@ -1,5 +1,5 @@
 import {
-  RSI, MACD, EMA, BollingerBands, SMA, ATR, Stochastic
+  RSI, MACD, EMA, BollingerBands, SMA, ATR, Stochastic, ADX as ADXIndicator
 } from 'technicalindicators';
 import { Candle } from '../connectors/coinbase';
 
@@ -50,6 +50,19 @@ export interface StochasticResult {
   overbought: boolean;
 }
 
+export interface ADXResult {
+  value: number;       // ADX value (0-100)
+  trending: boolean;   // true if ADX > threshold (strong trend)
+  plusDI: number;      // +DI value
+  minusDI: number;     // -DI value
+  trendDirection: 'bullish' | 'bearish' | 'neutral';
+}
+
+export interface RSIDivergence {
+  bullish: boolean;    // Prix fait un nouveau bas mais RSI ne suit pas
+  bearish: boolean;    // Prix fait un nouveau haut mais RSI ne suit pas
+}
+
 export interface FullIndicators {
   rsi: RSIResult;
   macd: MACDResult;
@@ -57,6 +70,8 @@ export interface FullIndicators {
   bollinger: BollingerResult;
   atr: ATRResult;
   stochastic: StochasticResult;
+  adx: ADXResult;
+  rsiDivergence: RSIDivergence;
   volume: {
     current: number;
     average: number;
@@ -88,6 +103,8 @@ export class TechnicalAnalysis {
       bollinger: this.computeBollinger(closes),
       atr: this.computeATR(highs, lows, closes),
       stochastic: this.computeStochastic(highs, lows, closes),
+      adx: this.computeADX(highs, lows, closes),
+      rsiDivergence: this.computeRSIDivergence(closes, highs, lows),
       volume: this.computeVolume(volumes),
     };
   }
@@ -275,5 +292,73 @@ export class TechnicalAnalysis {
       support: Math.min(...lows),
       resistance: Math.max(...highs),
     };
+  }
+
+  // =============================================
+  // ADX (Average Directional Index) — Force de tendance
+  // =============================================
+  static computeADX(highs: number[], lows: number[], closes: number[], period = 14): ADXResult {
+    const values = ADXIndicator.calculate({
+      high: highs,
+      low: lows,
+      close: closes,
+      period,
+    });
+
+    const current = values[values.length - 1];
+    if (!current) {
+      return { value: 0, trending: false, plusDI: 0, minusDI: 0, trendDirection: 'neutral' };
+    }
+
+    const adxValue = current.adx;
+    const plusDI = current.pdi;
+    const minusDI = current.mdi;
+    const trending = adxValue > 20; // ADX > 20 = tendance significative
+
+    let trendDirection: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+    if (trending) {
+      trendDirection = plusDI > minusDI ? 'bullish' : 'bearish';
+    }
+
+    return { value: adxValue, trending, plusDI, minusDI, trendDirection };
+  }
+
+  // =============================================
+  // RSI Divergence — Détecte les retournements
+  // =============================================
+  static computeRSIDivergence(closes: number[], highs: number[], lows: number[], lookback = 14): RSIDivergence {
+    const rsiValues = RSI.calculate({ values: closes, period: 14 });
+
+    if (rsiValues.length < lookback) {
+      return { bullish: false, bearish: false };
+    }
+
+    const recentRsi = rsiValues.slice(-lookback);
+    const recentLows = lows.slice(-lookback);
+    const recentHighs = highs.slice(-lookback);
+
+    // Divergence baissière : prix fait un nouveau haut mais RSI fait un haut plus bas
+    const lastHighIdx = recentHighs.length - 1;
+    const prevHighIdx = recentHighs.reduce((maxIdx, val, idx) => {
+      if (idx < lastHighIdx - 2 && val > recentHighs[maxIdx]) return idx;
+      return maxIdx;
+    }, 0);
+
+    const bearish = recentHighs[lastHighIdx] > recentHighs[prevHighIdx] &&
+                    recentRsi[lastHighIdx] < recentRsi[prevHighIdx] &&
+                    recentRsi[lastHighIdx] > 60;
+
+    // Divergence haussière : prix fait un nouveau bas mais RSI fait un bas plus haut
+    const lastLowIdx = recentLows.length - 1;
+    const prevLowIdx = recentLows.reduce((minIdx, val, idx) => {
+      if (idx < lastLowIdx - 2 && val < recentLows[minIdx]) return idx;
+      return minIdx;
+    }, 0);
+
+    const bullish = recentLows[lastLowIdx] < recentLows[prevLowIdx] &&
+                    recentRsi[lastLowIdx] > recentRsi[prevLowIdx] &&
+                    recentRsi[lastLowIdx] < 40;
+
+    return { bullish, bearish };
   }
 }
