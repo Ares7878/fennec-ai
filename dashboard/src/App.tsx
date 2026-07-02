@@ -341,15 +341,21 @@ function RiskMonitor({ status }: { status: BotStatus }) {
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1, background: 'var(--color-surface-3)', borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Stop-Loss</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-danger)' }}>1%</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-danger)' }}>
+              {status.limits?.stopLossPercent ? (status.limits.stopLossPercent * 100).toFixed(0) : '3'}%
+            </div>
           </div>
           <div style={{ flex: 1, background: 'var(--color-surface-3)', borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Take-Profit</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-success)' }}>2%</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-success)' }}>
+              {status.limits?.takeProfitPercent ? (status.limits.takeProfitPercent * 100).toFixed(0) : '6'}%
+            </div>
           </div>
           <div style={{ flex: 1, background: 'var(--color-surface-3)', borderRadius: 10, padding: '10px 12px' }}>
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Max Trades</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>3</div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Max Trades (Jour)</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>
+              {status.limits?.maxDailyTrades || 6}
+            </div>
           </div>
         </div>
       </div>

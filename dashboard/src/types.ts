@@ -10,6 +10,7 @@ export interface BotStatus {
   uptime: number;
   drawdown: number;
   dailyLoss: number;
+  limits?: any;
 }
 
 export interface CryptoPrice {

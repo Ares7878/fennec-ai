@@ -39,6 +39,7 @@ export async function fetchBotStatus(): Promise<BotStatus | null> {
     uptime: data.uptime ?? 0,
     drawdown: data.drawdown ?? 0,
     dailyLoss: data.dailyLoss ?? 0,
+    limits: data.limits,
   };
 }
 
@@ -117,6 +118,7 @@ export function getMockStatus(): BotStatus {
     uptime: 0,
     drawdown: 0,
     dailyLoss: 0,
+    limits: { stopLossPercent: 0.03, takeProfitPercent: 0.06, maxDailyTrades: 6 },
   };
 }
 
