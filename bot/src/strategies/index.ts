@@ -1,6 +1,7 @@
 import { Candle } from '../connectors/coinbase';
 import { TechnicalAnalysis, FullIndicators } from './indicators';
 import { ConsensusStrategy } from './consensus';
+import { AdaptiveStrategy } from './adaptive';
 import { BaseStrategy, StrategyConfig, StrategySignal, SignalType } from './base';
 
 export { BaseStrategy, StrategyConfig, StrategySignal, SignalType };
@@ -222,9 +223,10 @@ export function createStrategy(name: string, config: StrategyConfig): BaseStrate
     case 'ema_cross': return new EMACrossStrategy(config);
     case 'bollinger': return new BollingerStrategy(config);
     case 'consensus': return new ConsensusStrategy(config);
+    case 'adaptive': return new AdaptiveStrategy(config);
     default:
-      throw new Error(`Stratégie inconnue : ${name}. Utilisez : rsi, macd, ema_cross, bollinger, consensus`);
+      throw new Error(`Stratégie inconnue : ${name}. Utilisez : rsi, macd, ema_cross, bollinger, consensus, adaptive`);
   }
 }
 
-export { ConsensusStrategy };
+export { ConsensusStrategy, AdaptiveStrategy };

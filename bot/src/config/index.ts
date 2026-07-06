@@ -46,7 +46,7 @@ export const config = {
 
   // Strategy
   strategy: {
-    active: optional('ACTIVE_STRATEGY', 'consensus') as 'rsi' | 'macd' | 'ema_cross' | 'bollinger' | 'consensus',
+    active: optional('ACTIVE_STRATEGY', 'consensus') as 'rsi' | 'macd' | 'ema_cross' | 'bollinger' | 'consensus' | 'adaptive',
     candleInterval: optional('CANDLE_INTERVAL', '1h'),
     minConsensus: parseInt(optional('MIN_CONSENSUS', '3')), // Votes min pour la strat consensus
     minSignalStrength: parseFloat(optional('MIN_SIGNAL_STRENGTH', '0.65')), // Force min du signal (relevé pour filtrer les faux signaux)
@@ -57,6 +57,8 @@ export const config = {
     breakEvenActivationPct: parseFloat(optional('BREAKEVEN_ACTIVATION_PCT', '0.01')), // Breakeven après +1%
     // ADX minimum pour considérer qu'il y a une tendance
     minADX: parseFloat(optional('MIN_ADX', '20')),
+    // Score minimum pour la stratégie adaptive (0-100)
+    minScore: parseFloat(optional('MIN_SCORE', '62')),
   },
 
   // API Server (pour le dashboard web)
