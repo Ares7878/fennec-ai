@@ -371,7 +371,8 @@ function BotControls({ status, strategy, onPause, onResume, onStrategyChange }: 
   onPause: () => void; onResume: () => void; onStrategyChange: (s: string) => void;
 }) {
   const strategies = [
-    { id: 'consensus', name: '🧠 Consensus', desc: '4-en-1 (Recommandé)' },
+    { id: 'adaptive', name: '🦊 Adaptive', desc: 'Scoring dynamique v3.0' },
+    { id: 'consensus', name: '🧠 Consensus', desc: '4-en-1 (Classique)' },
     { id: 'rsi', name: 'RSI', desc: 'Survente / Surachat' },
     { id: 'macd', name: 'MACD', desc: 'Croisements Signal' },
     { id: 'ema_cross', name: 'EMA Cross', desc: 'Golden / Death Cross' },

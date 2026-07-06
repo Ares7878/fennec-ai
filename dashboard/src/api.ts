@@ -114,11 +114,11 @@ export function getMockStatus(): BotStatus {
     running: true,
     paused: false,
     mode: 'paper',
-    strategy: 'consensus',
+    strategy: 'adaptive',
     uptime: 0,
     drawdown: 0,
     dailyLoss: 0,
-    limits: { stopLossPercent: 0.03, takeProfitPercent: 0.06, maxDailyTrades: 6 },
+    limits: { stopLossPercent: 0.03, takeProfitPercent: 0.06, maxDailyTrades: 8 },
   };
 }
 
