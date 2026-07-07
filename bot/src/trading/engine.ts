@@ -245,6 +245,15 @@ export class TradingEngine {
     // Génération du signal
     const signal: StrategySignal = strategy.analyze(candles);
 
+    // 🆕 Filtre Macro BTC
+    if (signal.signal === 'buy' && pair !== 'BTC-USD') {
+      const btcTrend = await this.getBtcTrend();
+      if (btcTrend === 'bearish') {
+        logger.debug(`[${pair}] Signal BUY ignoré — Macro BTC Bearish`);
+        return; // On annule le buy si BTC chute
+      }
+    }
+
     // Sauvegarde du signal en DB
     const signalId = signalQueries.insert({
       pair,
@@ -269,6 +278,32 @@ export class TradingEngine {
     } else if (signal.signal === 'sell' && signal.strength >= minStrength) {
       const executed = await this.executeSell(pair, signal, currentPrice);
       if (executed) signalQueries.markActedOn(signalId);
+    }
+  }
+
+  /**
+   * Analyse la tendance macro du BTC pour filtrer les faux signaux sur les alts
+   */
+  private async getBtcTrend(): Promise<'bullish' | 'bearish' | 'neutral'> {
+    try {
+      const candles = await this.coinbase.getCandles('BTC-USD', '1h', 50);
+      if (candles.length < 50) return 'neutral';
+      
+      const currentPrice = candles[candles.length - 1].close;
+      const sma20 = candles.slice(-20).reduce((sum, c) => sum + c.close, 0) / 20;
+      
+      // Si le prix est sous la SMA20 et en baisse par rapport à il y a 4 heures
+      const price4hAgo = candles[candles.length - 5].close;
+      if (currentPrice < sma20 && currentPrice < price4hAgo) {
+        return 'bearish';
+      }
+      if (currentPrice > sma20 && currentPrice > price4hAgo) {
+        return 'bullish';
+      }
+      return 'neutral';
+    } catch (err) {
+      logger.error('Erreur getBtcTrend', { error: err });
+      return 'neutral';
     }
   }
 

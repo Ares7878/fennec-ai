@@ -620,6 +620,9 @@ function SignalsPage({ signals }: { signals: Signal[] }) {
                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                     {s.strategy.toUpperCase()} • ${s.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
                   </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-dim)', marginTop: 4 }}>
+                    {s.reason || 'Aucune raison spécifiée'}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -671,13 +674,13 @@ function SettingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[
               ['Mode', '📄 Paper Trading'],
-              ['Cryptos', 'BTC, ETH, SOL, XRP, DOGE, AVAX'],
-              ['Capital simulé', '$540 (≈ 500€)'],
-              ['Stop-Loss', '1%'],
-              ['Take-Profit', '2%'],
+              ['Cryptos', 'DOGE, XRP, SOL, AVAX, LINK'],
+              ['Montant par trade', '$100'],
+              ['Stop-Loss', '5%'],
+              ['Take-Profit', '15%'],
               ['Max Drawdown', '15%'],
-              ['Intervalle', '15 minutes'],
-              ['Max trades', '3 simultanés'],
+              ['Intervalle', '1 heure'],
+              ['Cooldown', '2 heures'],
             ].map(([k, v]) => (
               <div key={k} style={{ background: 'var(--color-surface-3)', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>{k}</div>

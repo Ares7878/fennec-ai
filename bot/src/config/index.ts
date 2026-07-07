@@ -32,12 +32,12 @@ export const config = {
   // Trading
   trading: {
     mode: optional('TRADING_MODE', 'paper') as 'paper' | 'live',
-    pairs: optional('TRADING_PAIRS', 'BTC-USD,ETH-USD,SOL-USD,XRP-USD,DOGE-USD,AVAX-USD')
+    pairs: optional('TRADING_PAIRS', 'DOGE-USD,XRP-USD,SOL-USD,AVAX-USD,LINK-USD')
       .split(',').map(p => p.trim()),
-    maxTradeAmountUsd: parseFloat(optional('MAX_TRADE_AMOUNT_USD', '54')),
+    maxTradeAmountUsd: parseFloat(optional('MAX_TRADE_AMOUNT_USD', '100')),
     maxPositionSize: parseFloat(optional('MAX_POSITION_SIZE', '0.10')),
-    defaultStopLoss: parseFloat(optional('DEFAULT_STOP_LOSS', '0.03')),
-    defaultTakeProfit: parseFloat(optional('DEFAULT_TAKE_PROFIT', '0.06')),
+    defaultStopLoss: parseFloat(optional('DEFAULT_STOP_LOSS', '0.05')),
+    defaultTakeProfit: parseFloat(optional('DEFAULT_TAKE_PROFIT', '0.15')),
     maxDrawdown: parseFloat(optional('MAX_DRAWDOWN', '0.15')),
     maxDailyTrades: parseInt(optional('MAX_DAILY_TRADES', '6')),
     // Capital initial Paper Trading (500€ ≈ 540 USD)
@@ -46,7 +46,7 @@ export const config = {
 
   // Strategy
   strategy: {
-    active: optional('ACTIVE_STRATEGY', 'consensus') as 'rsi' | 'macd' | 'ema_cross' | 'bollinger' | 'consensus' | 'adaptive',
+    active: optional('ACTIVE_STRATEGY', 'breakout') as 'rsi' | 'macd' | 'ema_cross' | 'bollinger' | 'consensus' | 'adaptive' | 'breakout',
     candleInterval: optional('CANDLE_INTERVAL', '1h'),
     minConsensus: parseInt(optional('MIN_CONSENSUS', '3')), // Votes min pour la strat consensus
     minSignalStrength: parseFloat(optional('MIN_SIGNAL_STRENGTH', '0.65')), // Force min du signal (relevé pour filtrer les faux signaux)
@@ -57,8 +57,8 @@ export const config = {
     breakEvenActivationPct: parseFloat(optional('BREAKEVEN_ACTIVATION_PCT', '0.01')), // Breakeven après +1%
     // ADX minimum pour considérer qu'il y a une tendance
     minADX: parseFloat(optional('MIN_ADX', '20')),
-    // Score minimum pour la stratégie adaptive (0-100)
-    minScore: parseFloat(optional('MIN_SCORE', '62')),
+    // Score minimum pour la stratégie (0-100)
+    minScore: parseFloat(optional('MIN_SCORE', '72')),
   },
 
   // API Server (pour le dashboard web)
