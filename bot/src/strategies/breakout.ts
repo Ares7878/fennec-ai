@@ -1,4 +1,4 @@
-import { Candle } from '../connectors/coinbase';
+import { Candle } from '../connectors/alpaca';
 import { TechnicalAnalysis, FullIndicators } from './indicators';
 import { BaseStrategy, StrategySignal, StrategyConfig } from './base';
 import { config } from '../config';

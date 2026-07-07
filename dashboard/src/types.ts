@@ -65,6 +65,7 @@ export interface Signal {
   signal: 'buy' | 'sell' | 'hold';
   strength: number;
   price: number;
+  reason?: string;
   acted_on: boolean;  // true si ce signal a déclenché un trade
   created_at: string;
 }
@@ -83,11 +84,11 @@ export interface Stats {
 
 export type NavPage = 'dashboard' | 'trades' | 'signals' | 'settings';
 
-export const CRYPTO_META: Record<string, { emoji: string; color: string; name: string }> = {
-  'BTC-USD': { emoji: '₿', color: '#f97316', name: 'Bitcoin' },
-  'ETH-USD': { emoji: 'Ξ', color: '#6366f1', name: 'Ethereum' },
-  'SOL-USD': { emoji: '◎', color: '#a855f7', name: 'Solana' },
-  'XRP-USD': { emoji: '✕', color: '#06b6d4', name: 'XRP' },
-  'DOGE-USD': { emoji: 'Ð', color: '#eab308', name: 'Dogecoin' },
-  'AVAX-USD': { emoji: '🔺', color: '#ef4444', name: 'Avalanche' },
+export const STOCK_META: Record<string, { emoji: string; color: string; name: string }> = {
+  'SPY': { emoji: '🇺🇸', color: '#16a34a', name: 'S&P 500 ETF' },
+  'QQQ': { emoji: '📈', color: '#0284c7', name: 'Nasdaq ETF' },
+  'AAPL': { emoji: '🍏', color: '#94a3b8', name: 'Apple Inc.' },
+  'MSFT': { emoji: '🪟', color: '#0ea5e9', name: 'Microsoft' },
+  'NVDA': { emoji: '🖥️', color: '#84cc16', name: 'Nvidia Corp.' },
+  'TSLA': { emoji: '🚗', color: '#dc2626', name: 'Tesla Inc.' },
 };

@@ -1,4 +1,4 @@
-import { Candle } from '../connectors/coinbase';
+import { Candle } from '../connectors/alpaca';
 import { TechnicalAnalysis, FullIndicators } from './indicators';
 import { ConsensusStrategy } from './consensus';
 import { AdaptiveStrategy } from './adaptive';

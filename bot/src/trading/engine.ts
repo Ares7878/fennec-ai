@@ -1,6 +1,6 @@
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { CoinbaseConnector, Candle } from '../connectors/coinbase';
+import { AlpacaConnector, Candle } from '../connectors/alpaca';
 import { TelegramNotifier, getRandomPhrase } from '../notifiers/telegram';
 import { PaperTradingEngine } from './paper';
 import { RiskManager } from '../risk/manager';
@@ -11,7 +11,7 @@ import { tradeQueries, signalQueries, portfolioQueries, TradeRecord } from '../d
 // Moteur de Trading Principal (version optimisée)
 // =============================================
 export class TradingEngine {
-  private coinbase: CoinbaseConnector;
+  private alpaca: AlpacaConnector;
   private notifier: TelegramNotifier;
   private riskManager: RiskManager;
   private paperEngine: PaperTradingEngine;
@@ -25,11 +25,11 @@ export class TradingEngine {
   private readonly COOLDOWN_MS = config.strategy.tradeCooldownMinutes * 60 * 1000;
 
   constructor(
-    coinbase: CoinbaseConnector,
+    alpaca: AlpacaConnector,
     notifier: TelegramNotifier,
     riskManager: RiskManager
   ) {
-    this.coinbase = coinbase;
+    this.alpaca = alpaca;
     this.notifier = notifier;
     this.riskManager = riskManager;
     this.paperEngine = new PaperTradingEngine(notifier);
@@ -166,7 +166,7 @@ export class TradingEngine {
     this.paperEngine.reloadOpenPositions();
 
     // Abonnement aux prix en temps réel via WebSocket
-    this.coinbase.subscribeToTicker(config.trading.pairs, (pair, price, change24h) => {
+    this.alpaca.subscribeToTicker(config.trading.pairs, (pair, price, change24h) => {
       this.liveprices.set(pair, { price, change24h });
       // Vérification des stop-loss en temps réel
       this.checkOpenTradesExitConditions(pair, price);
@@ -201,7 +201,7 @@ export class TradingEngine {
     if (this.analysisInterval) {
       clearInterval(this.analysisInterval);
     }
-    this.coinbase.closeWebSocket();
+    this.alpaca.closeWebSocket();
     logger.info('🛑 Moteur de trading arrêté');
   }
 
@@ -231,7 +231,7 @@ export class TradingEngine {
     if (!strategy) return;
 
     // Récupération des chandeliers
-    const candles: Candle[] = await this.coinbase.getCandles(pair, config.strategy.candleInterval, 300);
+    const candles: Candle[] = await this.alpaca.getCandles(pair, config.strategy.candleInterval, 300);
     if (candles.length < 50) {
       logger.warn(`[${pair}] Pas assez de données (${candles.length} bougies)`);
       return;
@@ -245,12 +245,12 @@ export class TradingEngine {
     // Génération du signal
     const signal: StrategySignal = strategy.analyze(candles);
 
-    // 🆕 Filtre Macro BTC
-    if (signal.signal === 'buy' && pair !== 'BTC-USD') {
-      const btcTrend = await this.getBtcTrend();
-      if (btcTrend === 'bearish') {
-        logger.debug(`[${pair}] Signal BUY ignoré — Macro BTC Bearish`);
-        return; // On annule le buy si BTC chute
+    // 🆕 Filtre Macro SPY
+    if (signal.signal === 'buy' && pair !== 'SPY') {
+      const spyTrend = await this.getSpyTrend();
+      if (spyTrend === 'bearish') {
+        logger.debug(`[${pair}] Signal BUY ignoré — Macro SPY Bearish`);
+        return; // On annule le buy si SPY chute
       }
     }
 
@@ -282,11 +282,11 @@ export class TradingEngine {
   }
 
   /**
-   * Analyse la tendance macro du BTC pour filtrer les faux signaux sur les alts
+   * Analyse la tendance macro du SPY pour filtrer les faux signaux sur les actions
    */
-  private async getBtcTrend(): Promise<'bullish' | 'bearish' | 'neutral'> {
+  private async getSpyTrend(): Promise<'bullish' | 'bearish' | 'neutral'> {
     try {
-      const candles = await this.coinbase.getCandles('BTC-USD', '1h', 50);
+      const candles = await this.alpaca.getCandles('SPY', '1h', 50);
       if (candles.length < 50) return 'neutral';
       
       const currentPrice = candles[candles.length - 1].close;
@@ -337,7 +337,7 @@ export class TradingEngine {
     const allOpenTrades = tradeQueries.getOpen();
     const cashUSD = config.trading.mode === 'paper'
       ? this.paperEngine.getCashUSD()
-      : await this.coinbase.getBalance('USD');
+      : await this.alpaca.getBalance('USD');
 
     // 🆕 Extraire l'ATR des indicateurs pour le position sizing
     const atrPercent = (signal.indicators as any)?.atr?.percent;
@@ -373,7 +373,7 @@ export class TradingEngine {
     } else {
       // Mode LIVE : ordre réel sur Coinbase
       logger.info(`[LIVE] 🟢 ACHAT ${pair} $${positionSize.amountUsd.toFixed(2)} @ $${price}`);
-      const order = await this.coinbase.placeMarketOrder(pair, 'BUY', positionSize.amountUsd);
+      const order = await this.alpaca.placeMarketOrder(pair, 'BUY', positionSize.amountUsd);
 
       tradeQueries.insert({
         order_id: order.order_id,
@@ -430,12 +430,13 @@ export class TradingEngine {
       await this.paperEngine.sell(trade, price, reason);
     } else {
       // Mode LIVE
-      const currency = trade.pair.split('-')[0];
-      const balance = await this.coinbase.getBalance(currency);
+      const symbol = trade.pair;
+      const balance = await this.alpaca.getBalance(symbol);
 
       if (balance > 0) {
         logger.info(`[LIVE] 🔴 VENTE ${trade.pair} @ $${price} | ${reason}`);
-        await this.coinbase.placeMarketOrder(trade.pair, 'SELL', balance * price);
+        // Alpaca prend le montant en USD ou qty, placeMarketOrder prend USD pour notional
+        await this.alpaca.placeMarketOrder(trade.pair, 'SELL', balance * price);
 
         const pnl = (price - trade.entry_price) * trade.quantity;
         const pnlPercent = ((price - trade.entry_price) / trade.entry_price) * 100;
@@ -503,11 +504,11 @@ export class TradingEngine {
             this.liveprices.forEach((data, pair) => pricesMap.set(pair, data.price));
             return this.paperEngine.getPortfolioValueUSD(pricesMap);
           })()
-        : await this.coinbase.getTotalPortfolioValueUSD();
+        : await this.alpaca.getTotalPortfolioValueUSD();
 
       const cashUSD = config.trading.mode === 'paper'
         ? this.paperEngine.getCashUSD()
-        : await this.coinbase.getBalance('USD');
+        : await this.alpaca.getBalance('USD');
 
       const openTrades = tradeQueries.getOpen();
       const dailyStats = tradeQueries.getDailyStats();

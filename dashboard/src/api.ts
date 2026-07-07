@@ -124,12 +124,12 @@ export function getMockStatus(): BotStatus {
 
 export function getMockPrices(): CryptoPrice[] {
   return [
-    { pair: 'BTC-USD', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
-    { pair: 'ETH-USD', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
-    { pair: 'SOL-USD', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
-    { pair: 'XRP-USD', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
-    { pair: 'DOGE-USD', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
-    { pair: 'AVAX-USD', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
+    { pair: 'SPY', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
+    { pair: 'QQQ', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
+    { pair: 'AAPL', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
+    { pair: 'MSFT', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
+    { pair: 'NVDA', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
+    { pair: 'TSLA', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
   ];
 }
 

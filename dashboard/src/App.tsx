@@ -5,7 +5,7 @@ import {
 import type {
   BotStatus, CryptoPrice, Portfolio, Trade, Stats, PortfolioSnapshot, NavPage, Signal
 } from './types';
-import { CRYPTO_META } from './types';
+import { STOCK_META } from './types';
 import {
   getMockStatus, getMockPrices, getMockPortfolio,
   getMockPortfolioHistory, getMockTrades, getMockStats,
@@ -95,7 +95,7 @@ function Sidebar({ page, onNav, onAbout, onLogout }: { page: NavPage; onNav: (p:
 function CryptoCard({ cp, selected, onClick }: {
   cp: CryptoPrice; selected: boolean; onClick: () => void;
 }) {
-  const meta = CRYPTO_META[cp.pair] || { emoji: '🪙', color: '#888', name: cp.pair };
+  const meta = STOCK_META[cp.pair] || { emoji: '🏢', color: '#888', name: cp.pair };
   const isUp = cp.change24h >= 0;
 
   return (
@@ -248,7 +248,7 @@ function TradesTable({ trades }: { trades: Trade[] }) {
             <tr key={t.id} id={`trade-row-${t.id}`}>
               <td>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>{CRYPTO_META[t.pair]?.emoji || '🪙'}</span>
+                  <span>{STOCK_META[t.pair]?.emoji || '🏢'}</span>
                   <span style={{ fontWeight: 600 }}>{t.pair.split('-')[0]}</span>
                 </span>
               </td>
@@ -371,6 +371,7 @@ function BotControls({ status, strategy, onPause, onResume, onStrategyChange }: 
   onPause: () => void; onResume: () => void; onStrategyChange: (s: string) => void;
 }) {
   const strategies = [
+    { id: 'breakout', name: '🚀 Breakout', desc: 'Breakout Momentum v4.0' },
     { id: 'adaptive', name: '🦊 Adaptive', desc: 'Scoring dynamique v3.0' },
     { id: 'consensus', name: '🧠 Consensus', desc: '4-en-1 (Classique)' },
     { id: 'rsi', name: 'RSI', desc: 'Survente / Surachat' },
@@ -602,7 +603,7 @@ function SignalsPage({ signals }: { signals: Signal[] }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {signals.map(s => {
-          const meta = CRYPTO_META[s.pair] || { emoji: '🪙', color: '#888' };
+          const meta = STOCK_META[s.pair] || { emoji: '🏢', color: '#888' };
           return (
             <div key={s.id} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -616,7 +617,7 @@ function SignalsPage({ signals }: { signals: Signal[] }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 20 }}>{meta.emoji}</span>
                 <div>
-                  <div style={{ fontWeight: 700 }}>{s.pair.split('-')[0]}</div>
+                  <div style={{ fontWeight: 700 }}>{s.pair}</div>
                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                     {s.strategy.toUpperCase()} • ${s.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
                   </div>
@@ -674,7 +675,8 @@ function SettingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[
               ['Mode', '📄 Paper Trading'],
-              ['Cryptos', 'DOGE, XRP, SOL, AVAX, LINK'],
+              ['Marché', '📈 Actions (US)'],
+              ['Actifs', 'SPY, QQQ, AAPL, MSFT, NVDA, TSLA'],
               ['Montant par trade', '$100'],
               ['Stop-Loss', '5%'],
               ['Take-Profit', '15%'],

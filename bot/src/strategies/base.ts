@@ -1,4 +1,4 @@
-import { Candle } from '../connectors/coinbase';
+import { Candle } from '../connectors/alpaca';
 import { FullIndicators } from './indicators';
 
 // =============================================

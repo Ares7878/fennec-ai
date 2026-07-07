@@ -14,13 +14,10 @@ function optional(key: string, defaultValue: string): string {
 }
 
 export const config = {
-  // Coinbase
-  coinbase: {
-    apiKey: required('COINBASE_API_KEY'),
-    apiSecret: required('COINBASE_API_SECRET'),
-    passphrase: optional('COINBASE_PASSPHRASE', ''),
-    baseUrl: 'https://api.coinbase.com',
-    wsUrl: 'wss://advanced-trade-ws.coinbase.com',
+  // Alpaca
+  alpaca: {
+    apiKey: required('ALPACA_API_KEY'),
+    apiSecret: required('ALPACA_API_SECRET'),
   },
 
   // Telegram

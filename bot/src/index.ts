@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { initDatabase } from './database';
-import { CoinbaseConnector } from './connectors/coinbase';
+import { AlpacaConnector } from './connectors/alpaca';
 import { TelegramNotifier } from './notifiers/telegram';
 import { RiskManager } from './risk/manager';
 import { TradingEngine } from './trading/engine';
@@ -36,8 +36,8 @@ async function main(): Promise<void> {
   // =============================================
   // 2. Initialisation des Connecteurs
   // =============================================
-  logger.info('🔌 Connexion à Coinbase...');
-  const coinbase = new CoinbaseConnector();
+  logger.info('🔌 Connexion à Alpaca...');
+  const alpaca = new AlpacaConnector();
 
   logger.info('📱 Initialisation du bot Telegram...');
   const notifier = new TelegramNotifier();
@@ -45,13 +45,13 @@ async function main(): Promise<void> {
   // =============================================
   // 3. Test des Connexions
   // =============================================
-  const [coinbaseOk, telegramOk] = await Promise.all([
-    coinbase.testConnection(),
+  const [alpacaOk, telegramOk] = await Promise.all([
+    alpaca.testConnection(),
     notifier.testConnection(),
   ]);
 
-  if (!coinbaseOk) {
-    logger.error('❌ Impossible de se connecter à Coinbase. Vérifiez vos clés API dans .env');
+  if (!alpacaOk) {
+    logger.error('❌ Impossible de se connecter à Alpaca. Vérifiez vos clés API dans .env');
     process.exit(1);
   }
 
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
   // 5. Initialisation du Moteur de Trading
   // =============================================
   logger.info('⚙️  Initialisation du moteur de trading...');
-  const engine = new TradingEngine(coinbase, notifier, riskManager);
+  const engine = new TradingEngine(alpaca, notifier, riskManager);
 
   // =============================================
   // 6. Démarrage du Scheduler

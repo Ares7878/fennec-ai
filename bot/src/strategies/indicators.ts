@@ -1,7 +1,7 @@
 import {
   RSI, MACD, EMA, BollingerBands, SMA, ATR, Stochastic, ADX as ADXIndicator
 } from 'technicalindicators';
-import { Candle } from '../connectors/coinbase';
+import { Candle } from '../connectors/alpaca';
 
 // =============================================
 // Types de Résultats d'Indicateurs
