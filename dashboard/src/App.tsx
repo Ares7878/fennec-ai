@@ -48,7 +48,7 @@ function formatDate(iso: string) {
 // =============================================
 // Composant: Sidebar
 // =============================================
-function Sidebar({ page, onNav, onAbout, onLogout }: { page: NavPage; onNav: (p: NavPage) => void; onAbout: () => void; onLogout: () => void }) {
+function Sidebar({ page, onNav, onAbout, onLogout, isLightMode, onToggleTheme }: { page: NavPage; onNav: (p: NavPage) => void; onAbout: () => void; onLogout: () => void; isLightMode: boolean; onToggleTheme: () => void }) {
   const items: { page: NavPage; icon: string; label: string }[] = [
     { page: 'dashboard', icon: '📊', label: 'Dashboard' },
     { page: 'trades', icon: '💹', label: 'Trades' },
@@ -75,14 +75,15 @@ function Sidebar({ page, onNav, onAbout, onLogout }: { page: NavPage; onNav: (p:
           </button>
         ))}
       </nav>
-      <div style={{ marginTop: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <button className="sidebar-btn" onClick={onAbout} title="À propos">
-          <span>ℹ️</span>
-          <span className="tooltip">À propos</span>
+      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button className="nav-item" onClick={onToggleTheme} title={isLightMode ? 'Mode sombre' : 'Mode clair'}>
+          <span className="nav-icon">{isLightMode ? '🌙' : '☀️'}</span>
         </button>
-        <button className="sidebar-btn" onClick={onLogout} title="Déconnexion" style={{ color: 'var(--color-danger)' }}>
-          <span>🚪</span>
-          <span className="tooltip">Déconnexion</span>
+        <button className="nav-item info" onClick={onAbout} title="À propos">
+          <span className="nav-icon">ℹ️</span>
+        </button>
+        <button className="nav-item logout" onClick={onLogout} title="Déconnexion">
+          <span className="nav-icon">🚪</span>
         </button>
       </div>
     </aside>
@@ -675,8 +676,8 @@ function SettingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[
               ['Mode', '📄 Paper Trading'],
-              ['Marché', '📈 Actions (US)'],
-              ['Actifs', 'SPY, QQQ, AAPL, MSFT, NVDA, TSLA'],
+              ['Marché', '📈 Actions (US) + Or'],
+              ['Actifs', 'SPY, QQQ, AAPL, MSFT, NVDA, TSLA, GLD'],
               ['Montant par trade', '$100'],
               ['Stop-Loss', '5%'],
               ['Take-Profit', '15%'],
@@ -734,6 +735,21 @@ export default function App() {
   // =============================================
   // Chargement des données réelles depuis l'API
   // =============================================
+  const [isLightMode, setIsLightMode] = useState(() => localStorage.getItem('theme') === 'light');
+
+  useEffect(() => {
+    if (isLightMode) document.documentElement.classList.add('theme-light');
+    else document.documentElement.classList.remove('theme-light');
+  }, [isLightMode]);
+
+  const toggleTheme = () => {
+    setIsLightMode(prev => {
+      const next = !prev;
+      localStorage.setItem('theme', next ? 'light' : 'dark');
+      return next;
+    });
+  };
+
   const loadData = useCallback(async () => {
     try {
       const [botStatus, botPrices, botPortfolio, botHistory, botTrades, botStats, botSignals] = await Promise.all([
@@ -852,7 +868,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar page={page} onNav={setPage} onAbout={() => setShowAbout(true)} onLogout={handleLogout} />
+      <Sidebar page={page} onNav={setPage} onAbout={() => setShowAbout(true)} onLogout={handleLogout} isLightMode={isLightMode} onToggleTheme={toggleTheme} />
       <main className="main-content">
         {/* Header */}
         <header className="header">

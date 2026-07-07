@@ -9,6 +9,33 @@
 }
 
 :root {
+  /* Light Theme overrides */
+  --theme-light-bg: #f8fafc;
+  --theme-light-surface: #ffffff;
+  --theme-light-surface-2: #f1f5f9;
+  --theme-light-surface-3: #e2e8f0;
+  --theme-light-border: rgba(0, 0, 0, 0.1);
+  --theme-light-text: #0f172a;
+  --theme-light-text-muted: #64748b;
+  --theme-light-text-dim: #94a3b8;
+  --theme-light-glass-bg: rgba(255, 255, 255, 0.8);
+  --theme-light-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.05);
+}
+
+:root.theme-light {
+  --color-bg: var(--theme-light-bg);
+  --color-surface: var(--theme-light-surface);
+  --color-surface-2: var(--theme-light-surface-2);
+  --color-surface-3: var(--theme-light-surface-3);
+  --color-border: var(--theme-light-border);
+  --color-text: var(--theme-light-text);
+  --color-text-muted: var(--theme-light-text-muted);
+  --color-text-dim: var(--theme-light-text-dim);
+  --glass-bg: var(--theme-light-glass-bg);
+  --shadow-card: var(--theme-light-shadow-card);
+}
+
+:root {
   /* Palette Principale */
   --color-bg: #080c14;
   --color-surface: #0d1421;

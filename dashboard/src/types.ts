@@ -91,4 +91,5 @@ export const STOCK_META: Record<string, { emoji: string; color: string; name: st
   'MSFT': { emoji: '🪟', color: '#0ea5e9', name: 'Microsoft' },
   'NVDA': { emoji: '🖥️', color: '#84cc16', name: 'Nvidia Corp.' },
   'TSLA': { emoji: '🚗', color: '#dc2626', name: 'Tesla Inc.' },
+  'GLD': { emoji: '🥇', color: '#fbbf24', name: 'Gold ETF' },
 };

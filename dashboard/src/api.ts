@@ -130,6 +130,7 @@ export function getMockPrices(): CryptoPrice[] {
     { pair: 'MSFT', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
     { pair: 'NVDA', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
     { pair: 'TSLA', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
+    { pair: 'GLD', price: 0, change24h: 0, volume24h: 0, lastUpdated: new Date() },
   ];
 }
 

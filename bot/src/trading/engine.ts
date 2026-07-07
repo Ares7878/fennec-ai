@@ -133,9 +133,15 @@ export class TradingEngine {
     });
 
     this.notifier.registerCommand('portfolio', async () => {
-      const pricesMap = new Map<string, number>();
-      this.liveprices.forEach((data, pair) => pricesMap.set(pair, data.price));
-      return this.paperEngine.getSummary(pricesMap);
+      if (config.trading.mode === 'live') {
+        const value = await this.alpaca.getTotalPortfolioValueUSD();
+        const cash = await this.alpaca.getBalance('USD');
+        return `🏦 *Portfolio Alpaca (Live/Paper)*\n━━━━━━━━━━━━━━━━━━━━\n💵 Total: $${value.toFixed(2)}\n💰 Cash: $${cash.toFixed(2)}`;
+      } else {
+        const pricesMap = new Map<string, number>();
+        this.liveprices.forEach((data, pair) => pricesMap.set(pair, data.price));
+        return this.paperEngine.getSummary(pricesMap);
+      }
     });
 
     this.notifier.registerCommand('pause', async () => {
