@@ -127,28 +127,29 @@ export class AlpacaConnector {
         if(!isOp) return; // Ne pas poll si le marché est fermé
 
         const snapshots = await this.alpaca.getSnapshots(pairs);
-        for (const pair of pairs) {
-          const snap = snapshots[pair];
+        for (const snap of snapshots) {
           if (snap) {
-            // Utiliser latestTrade si latestQuote n'est pas fiable (souvent le cas avec IEX feed gratuit)
+            const pair = snap.symbol;
+            if (!pairs.includes(pair)) continue;
+
             let price = 0;
-            if (snap.latestTrade && snap.latestTrade.Price > 0) {
-              price = snap.latestTrade.Price;
-            } else if (snap.latestQuote && snap.latestQuote.AskPrice > 0) {
-              price = snap.latestQuote.AskPrice;
-            } else if (snap.minuteBar && snap.minuteBar.ClosePrice > 0) {
-              price = snap.minuteBar.ClosePrice;
+            if (snap.LatestTrade && snap.LatestTrade.Price > 0) {
+              price = snap.LatestTrade.Price;
+            } else if (snap.LatestQuote && snap.LatestQuote.AskPrice > 0) {
+              price = snap.LatestQuote.AskPrice;
+            } else if (snap.MinuteBar && snap.MinuteBar.ClosePrice > 0) {
+              price = snap.MinuteBar.ClosePrice;
             }
 
             if (price > 0) {
-              const prevClose = snap.prevDailyBar ? snap.prevDailyBar.ClosePrice : price;
+              const prevClose = snap.PrevDailyBar ? snap.PrevDailyBar.ClosePrice : price;
               const change24h = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
               onTick(pair, price, change24h);
             }
           }
         }
-      } catch (e) {
-        // Ignorer les erreurs de polling silencieusement
+      } catch (e: any) {
+        logger.error(`Erreur polling Alpaca: ${e.message}`);
       }
     }, 10000); // 10 secondes
   }
