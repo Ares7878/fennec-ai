@@ -129,11 +129,22 @@ export class AlpacaConnector {
         const snapshots = await this.alpaca.getSnapshots(pairs);
         for (const pair of pairs) {
           const snap = snapshots[pair];
-          if (snap && snap.latestQuote) {
-            const price = snap.latestQuote.AskPrice;
-            const prevClose = snap.prevDailyBar ? snap.prevDailyBar.ClosePrice : price;
-            const change24h = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
-            onTick(pair, price, change24h);
+          if (snap) {
+            // Utiliser latestTrade si latestQuote n'est pas fiable (souvent le cas avec IEX feed gratuit)
+            let price = 0;
+            if (snap.latestTrade && snap.latestTrade.Price > 0) {
+              price = snap.latestTrade.Price;
+            } else if (snap.latestQuote && snap.latestQuote.AskPrice > 0) {
+              price = snap.latestQuote.AskPrice;
+            } else if (snap.minuteBar && snap.minuteBar.ClosePrice > 0) {
+              price = snap.minuteBar.ClosePrice;
+            }
+
+            if (price > 0) {
+              const prevClose = snap.prevDailyBar ? snap.prevDailyBar.ClosePrice : price;
+              const change24h = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+              onTick(pair, price, change24h);
+            }
           }
         }
       } catch (e) {

@@ -585,7 +585,7 @@ function SignalsPage({ signals }: { signals: Signal[] }) {
     return (
       <div className="card animate-in">
         <div className="card-header">
-          <span className="card-title">📡 Signaux Consensus</span>
+          <span className="card-title">📡 Signaux de Stratégie</span>
         </div>
         <div className="empty-state">
           <div className="icon">📡</div>
